@@ -1,126 +1,65 @@
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { CircleCheck } from "lucide-react"
-import { Link, useLocation, useNavigate } from "react-router"
-import { z } from "zod"
+import { useEffect, useRef } from "react"
+import { LoaderCircle } from "lucide-react"
+import { Navigate } from "react-router"
 
 import { AuthLayout } from "@/components/auth/AuthLayout"
-import { GoogleButton, OrDivider } from "@/components/auth/GoogleButton"
-import { PasswordInput } from "@/components/auth/PasswordInput"
 import { Button } from "@/components/ui/button"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { AuthError, signIn } from "@/lib/auth"
+import { authEnabled } from "@/lib/auth"
+import { useSession } from "@/lib/session-context"
 
-const loginSchema = z.object({
-  email: z.email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-})
-
-type LoginValues = z.infer<typeof loginSchema>
-
-/** Set by the confirm page after a new account is verified. */
-interface LoginState {
-  email?: string
-  confirmed?: boolean
-}
-
+/**
+ * /login/ is the address to hand in: it starts the sign-in from this app and goes straight to
+ * Cognito's page (email + password, or Continue with Google). Starting here matters because the
+ * library saves the `state` and PKCE verifier in this browser before redirecting; without them the
+ * callback would reject the code.
+ */
 export function LoginPage() {
-  const navigate = useNavigate()
-  const state = (useLocation().state ?? {}) as LoginState
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: state.email ?? "", password: "" },
-  })
+  const { isAuthenticated, isLoading, error, signIn } = useSession()
+  const started = useRef(false)
+  const cognito = authEnabled()
 
-  const onSubmit = async ({ email, password }: LoginValues) => {
-    try {
-      await signIn(email, password)
-      navigate("/home", { replace: true })
-    } catch (error) {
-      if (error instanceof AuthError && error.code === "UserNotConfirmedException") {
-        navigate("/confirm", { state: { email } })
-        return
-      }
-      form.setError("root", { message: error instanceof Error ? error.message : "Sign-in failed" })
-    }
-  }
+  // A failed redirect (Cognito unreachable) is reported through `error`, not thrown.
+  const start = () => void signIn()
+
+  useEffect(() => {
+    if (!cognito || isLoading || isAuthenticated || started.current) return
+    started.current = true
+    start()
+    // start() depends on nothing that changes; the ref makes this run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cognito, isLoading, isAuthenticated])
+
+  if (isAuthenticated) return <Navigate to="/home" replace />
 
   return (
     <AuthLayout>
       <h1 className="text-2xl font-semibold text-foreground">Sign in</h1>
-      <p className="mt-1.5 text-sm text-muted-foreground">
-        Welcome back. Sign in to see your meetings.
-      </p>
-
-      {state.confirmed && (
-        <p className="mt-6 flex items-center gap-2 rounded-sm bg-secondary px-3 py-2 text-sm text-secondary-foreground">
-          <CircleCheck className="size-4 shrink-0" /> Account confirmed. Sign in to continue.
-        </p>
-      )}
-
-      <div className="mt-8">
-        <GoogleButton label="Continue with Google" />
-      </div>
-      <OrDivider />
-
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <PasswordInput autoComplete="current-password" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {form.formState.errors.root && (
-            <p role="alert" className="text-sm text-destructive">
-              {form.formState.errors.root.message}
+      {cognito ? (
+        error ? (
+          <div role="alert" className="mt-4">
+            <p className="text-sm text-destructive">
+              {error.message || "Could not reach the sign-in page"}
             </p>
-          )}
-          <Button type="submit" className="h-10 w-full" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Signing in…" : "Sign in"}
+            <Button className="mt-4 h-10 w-full" onClick={start}>
+              Try again
+            </Button>
+          </div>
+        ) : (
+          <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <LoaderCircle className="size-4 animate-spin" /> Redirecting to the sign-in page…
+          </p>
+        )
+      ) : (
+        <>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Sign-in is not configured here (no Cognito settings), so every request acts as one local
+            user.
+          </p>
+          <Button className="mt-6 h-10 w-full" onClick={start}>
+            Continue as local developer
           </Button>
-        </form>
-      </Form>
-
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
-        <Link to="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
-          Sign up
-        </Link>
-      </p>
+        </>
+      )}
     </AuthLayout>
   )
 }

@@ -1,43 +1,31 @@
-import { useEffect, useRef, useState } from "react"
 import { LoaderCircle } from "lucide-react"
-import { Link, useNavigate, useSearchParams } from "react-router"
+import { Link, Navigate } from "react-router"
 
 import { AuthLayout } from "@/components/auth/AuthLayout"
-import { completeOAuthSignIn } from "@/lib/auth"
+import { useSession } from "@/lib/session-context"
 
-/** Where the Cognito Hosted UI sends the browser back after Google sign-in. */
+/**
+ * Where Cognito sends the browser back with `?code=…&state=…`. The OIDC provider exchanges the code
+ * for tokens as soon as the app loads; this page only waits for that and shows what happened.
+ */
 export function AuthCallbackPage() {
-  const navigate = useNavigate()
-  const [params] = useSearchParams()
-  const code = params.get("code")
-  const state = params.get("state")
-  // No code means the Hosted UI came back with an error (or the user cancelled).
-  const redirectError =
-    code && state ? null : (params.get("error_description") ?? "Sign-in was cancelled")
-  const [exchangeError, setExchangeError] = useState<string | null>(null)
-  const error = redirectError ?? exchangeError
-  // The code can be exchanged only once; StrictMode runs effects twice in development.
-  const started = useRef(false)
+  const { isAuthenticated, isLoading, error } = useSession()
 
-  useEffect(() => {
-    if (!code || !state || started.current) return
-    started.current = true
-    completeOAuthSignIn(code, state)
-      .then(() => navigate("/home", { replace: true }))
-      .catch((err: Error) => setExchangeError(err.message))
-  }, [code, state, navigate])
+  if (isAuthenticated) return <Navigate to="/home" replace />
+  // Nothing to finish (opened by hand, or the code was already used): start over.
+  if (!isLoading && !error) return <Navigate to="/login/" replace />
 
   return (
     <AuthLayout>
       {error ? (
         <div role="alert">
           <h1 className="text-2xl font-semibold text-foreground">Sign-in failed</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
           <Link
-            to="/"
+            to="/login/"
             className="mt-6 inline-block font-medium text-primary underline-offset-4 hover:underline"
           >
-            Back to sign in
+            Try again
           </Link>
         </div>
       ) : (

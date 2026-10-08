@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 
 import App from "@/App"
-import { mockFetch, renderWithQuery } from "@/test/utils"
+import { mockFetch, renderWithQuery, signInForTest } from "@/test/utils"
 
 function renderAt(route: string) {
   mockFetch(() => ({ body: [] }))
@@ -12,69 +12,46 @@ function renderAt(route: string) {
 
 const calendarShown = () => screen.findByRole("group", { name: "Calendar view" }, { timeout: 2000 })
 
-describe("Sign in", () => {
-  it("is the main page", () => {
+// Without VITE_COGNITO_* the app runs with auth off (local development).
+describe("Front page and sign-in with auth off", () => {
+  it("has Sign in in the header and on the page, both pointing to /login/", () => {
+    renderAt("/")
+    const links = screen.getAllByRole("link", { name: /Sign in/ })
+    expect(links).toHaveLength(2)
+    links.forEach((link) => expect(link).toHaveAttribute("href", "/login/"))
+    expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument()
+  })
+
+  it("shows the sign-in page layout, without Cognito-only buttons", () => {
     renderAt("/")
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument()
+    expect(
+      screen.getByText("Plan meetings, invite people and know where to be."),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Continue with Google/ })).not.toBeInTheDocument()
   })
 
-  it("validates email and password", async () => {
+  it("sends a signed-in user from the front page to the calendar", async () => {
+    signInForTest()
     renderAt("/")
-    await userEvent.type(screen.getByLabelText("Email"), "not-an-email")
-    await userEvent.click(screen.getByRole("button", { name: "Sign in" }))
-    expect(await screen.findByText("Enter a valid email")).toBeInTheDocument()
-    expect(screen.getByText("Password is required")).toBeInTheDocument()
-  })
-
-  it("opens the calendar after signing in", async () => {
-    renderAt("/")
-    await userEvent.type(screen.getByLabelText("Email"), "anna@example.com")
-    await userEvent.type(screen.getByLabelText("Password"), "secret")
-    await userEvent.click(screen.getByRole("button", { name: "Sign in" }))
     expect(await calendarShown()).toBeInTheDocument()
   })
 
-  it("shows Google as coming soon until it is enabled", () => {
-    renderAt("/")
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeDisabled()
-    expect(screen.getByText("Google sign-in is coming soon.")).toBeInTheDocument()
+  it("sends signed-out users from the calendar to /login/", async () => {
+    renderAt("/home")
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument()
   })
 
-  it("links to sign up", async () => {
-    renderAt("/")
-    await userEvent.click(screen.getByRole("link", { name: "Sign up" }))
-    expect(screen.getByRole("heading", { name: "Create an account" })).toBeInTheDocument()
-  })
-})
-
-describe("Sign up", () => {
-  it("checks password length and confirmation", async () => {
-    renderAt("/signup")
-    await userEvent.type(screen.getByLabelText("Name"), "Anna")
-    await userEvent.type(screen.getByLabelText("Email"), "anna@example.com")
-    await userEvent.type(screen.getByLabelText("Password"), "short")
-    await userEvent.type(screen.getByLabelText("Confirm password"), "different")
-    await userEvent.click(screen.getByRole("button", { name: "Create account" }))
-    expect(await screen.findByText("At least 8 characters")).toBeInTheDocument()
-    expect(screen.getByText("Passwords do not match")).toBeInTheDocument()
-  })
-
-  it("opens the calendar after creating an account", async () => {
-    renderAt("/signup")
-    await userEvent.type(screen.getByLabelText("Name"), "Anna")
-    await userEvent.type(screen.getByLabelText("Email"), "anna@example.com")
-    await userEvent.type(screen.getByLabelText("Password"), "long-enough1")
-    await userEvent.type(screen.getByLabelText("Confirm password"), "long-enough1")
-    await userEvent.click(screen.getByRole("button", { name: "Create account" }))
+  it("opens the calendar after continuing as the local user", async () => {
+    renderAt("/login/")
+    await userEvent.click(screen.getByRole("button", { name: "Continue as local developer" }))
     expect(await calendarShown()).toBeInTheDocument()
   })
 
-  it("shows/hides the password", async () => {
-    renderAt("/signup")
-    const password = screen.getByLabelText("Password")
-    expect(password).toHaveAttribute("type", "password")
-    await userEvent.click(screen.getAllByRole("button", { name: "Show password" })[0])
-    expect(password).toHaveAttribute("type", "text")
+  it("has no sign-up or password form of its own: that is Cognito's page", () => {
+    renderAt("/login/")
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Sign up" })).not.toBeInTheDocument()
   })
 })

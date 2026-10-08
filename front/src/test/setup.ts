@@ -44,6 +44,7 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
   localStorage.clear()
   sessionStorage.clear()
 })

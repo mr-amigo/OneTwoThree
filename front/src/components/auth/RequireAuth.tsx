@@ -1,14 +1,11 @@
 import type { ReactNode } from "react"
 import { Navigate } from "react-router"
 
-import { isSignedIn } from "@/lib/auth"
+import { useSession } from "@/lib/session-context"
 
-/** Renders the page only with a session; otherwise sends the user to sign in. */
+/** Renders the page only with a session; otherwise starts the sign-in at /login/. */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  return isSignedIn() ? children : <Navigate to="/" replace />
-}
-
-/** Sign-in and sign-up pages skip straight to the calendar when already signed in. */
-export function RedirectIfSignedIn({ children }: { children: ReactNode }) {
-  return isSignedIn() ? <Navigate to="/home" replace /> : children
+  const { isAuthenticated, isLoading } = useSession()
+  if (isLoading) return null
+  return isAuthenticated ? children : <Navigate to="/login/" replace />
 }

@@ -13,9 +13,9 @@ make start       # the same without watching (returns once the stack is healthy)
 make help        # all targets: logs, test, lint, format, clean, aws-*
 ```
 
-- App: http://localhost:3000 (sign in / sign up; the calendar is at `/home`). Until Cognito is set
-  up (see [Sign-in](#sign-in-cognito)), nothing is checked: any valid form opens the calendar and
-  everyone is one local user.
+- App: http://localhost:3000 (front page with a Sign in button; the calendar is at `/home`). Until
+  Cognito is set up (see [Sign-in](#sign-in-cognito)), nothing is checked: `/login/` offers to
+  continue as one local user.
 - API docs: http://localhost:3000/api/docs (or http://localhost:8000/api/docs directly)
 
 If a host port is already taken, change `DB_PORT`, `BACKEND_PORT` or `FRONTEND_PORT` in `.env`.
@@ -39,13 +39,13 @@ back/             # FastAPI + SQLAlchemy 2 + Alembic
   tests/
 front/            # Vite + React + TypeScript + Tailwind + shadcn/ui
   src/
-    pages/        # LoginPage (/), SignUpPage (/signup), ConfirmPage (/confirm), AuthCallbackPage
-                  # (/auth/callback, Google), HomePage (/home, the calendar; needs sign-in)
+    pages/        # LandingPage (/), LoginPage (/login/, redirects to Cognito's sign-in page),
+                  # AuthCallbackPage (/auth/callback), HomePage (/home, the calendar; needs sign-in)
     components/   # MeetingsCalendar, MeetingFormDialog, DeleteMeetingDialog, ParticipantsMultiSelect
     components/ui # generated shadcn components
     hooks/        # TanStack Query hooks
     lib/calendar.ts # date helpers and the overlap layout for the calendar
-    lib/auth.ts   # Cognito sign-in/up, session and token refresh, Google (Hosted UI + PKCE)
+    lib/auth.ts   # OIDC client for Cognito (react-oidc-context + oidc-client-ts): code flow + PKCE, token for the API
     lib/api.ts    # typed fetch wrapper (VITE_API_URL = backend origin, empty = same origin)
   nginx.conf      # serves the SPA, proxies /api to backend
 infra/            # CloudFormation: cognito, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront)
@@ -74,25 +74,51 @@ and at least one of `call_link` or `place`.
 
 ## Sign-in (Cognito)
 
-The browser signs in with a Cognito user pool directly: email + password (sign-up sends a 6-digit
-code to confirm the email) and, once configured, Google through the Cognito Hosted UI. The API
-verifies the ID token's signature, issuer, audience and expiry against the pool's public keys and
-stores the user in the `users` table (keyed by the token's `sub`), where extra profile data lives.
+The site has no password form of its own. **`/login/`** starts an OpenID Connect sign-in
+(authorization code + PKCE, through `react-oidc-context`) and sends the browser to Cognito's managed
+login page, which offers both **email + password** (with sign-up and the emailed confirmation code)
+and **Continue with Google**. Cognito talks to Google; Google never talks to this site, so for the
+frontend a Google user and a password user look the same: both come back with Cognito tokens. The
+browser returns to `/auth/callback`, the code is exchanged for tokens, and the header shows the
+signed-in email. Sign out clears the local session and then visits Cognito's `/logout`, because
+Cognito has no standard OIDC end-session endpoint and keeps its own cookie session.
+
+The login has to start at `/login/`: the library saves a random `state` and the PKCE verifier in the
+browser before redirecting, and a hand-copied Cognito URL would come back to a callback that has
+neither, so the code would be rejected.
+
+The API verifies the token's signature, issuer, audience and expiry against the pool's public keys
+and stores the user in the `users` table (keyed by the token's `sub`), where extra profile data lives.
+A password user and a Google user with the same email are two different users with two different `sub`s.
+
+**1. Google OAuth client** (Google Cloud console, a project of your own):
+
+1. OAuth consent screen: user type External, scopes only `openid`, `email`, `profile`, and
+   **publish** the app (status "In production"; in "Testing" only listed test users can sign in).
+2. Create an OAuth client ID of type "Web application" with
+   - authorised JavaScript origin `https://<COGNITO_DOMAIN>`,
+   - authorised redirect URI `https://<COGNITO_DOMAIN>/oauth2/idpresponse`,
+
+   where `<COGNITO_DOMAIN>` is `meetings-<AWS account id>.auth.us-east-1.amazoncognito.com`
+   (`make aws-check` prints the account id).
+3. Put the client ID and secret in `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The secret
+   goes to CloudFormation as a `NoEcho` parameter and never appears in the repository or the frontend build.
+
+**2. Deploy the user pool:**
 
 ```bash
-make aws-cognito-deploy   # user pool + app client + Hosted UI domain; prints the lines for .env
+make aws-cognito-deploy   # user pool (Essentials tier) + Google + app client + managed login; prints the lines for .env
 make aws-cognito-env      # print them again
 ```
 
-Paste the printed `COGNITO_*` lines into `.env` and run `make up`. The local backend and frontend
-then use the real user pool. With `COGNITO_USER_POOL_ID` empty, auth is off: no token is checked and
-every request acts as one local user (`dev@localhost`).
+Paste the printed `COGNITO_*` lines into `.env` and run `make up`; the local frontend and backend
+then use the real user pool (`http://localhost:3000/auth/callback` and `http://localhost:5173/auth/callback`
+are registered). With `COGNITO_USER_POOL_ID` empty, auth is off: no token is checked and every
+request acts as one local user (`dev@localhost`).
 
-**Google sign-in** (off until configured): create an OAuth client ID (type "Web application") in
-Google Cloud with the redirect URI `https://<COGNITO_DOMAIN>/oauth2/idpresponse`, set
-`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`, then run `make aws-cognito-deploy` again and
-copy `COGNITO_GOOGLE_ENABLED=true` into `.env`. On AWS, run `make aws-frontend-publish` to rebuild the
-frontend with it. Until then the Google button shows as "coming soon".
+Callback URLs must match `redirect_uri` exactly, including a trailing slash. The app uses
+`<origin>/auth/callback` without one. Cognito's built-in email sender allows about 50 messages a day;
+a real product would send through Amazon SES.
 
 On AWS the Lambda has no internet access, so `aws-backend-stack` downloads the pool's JWKS and passes
 it in as `COGNITO_JWKS`. Cognito does not rotate user pool signing keys. Meetings created before
@@ -143,7 +169,7 @@ Config lives in `back/pyproject.toml` (`[tool.ruff]`), `front/eslint.config.js` 
 
 Everything is deployed to **us-east-1**. CloudFront accepts custom-domain certificates only from that region. Infrastructure is CloudFormation in `infra/`:
 
-- `infra/cognito.yaml`: Cognito user pool (email + password, self sign-up with email code), public app client, Hosted UI domain, and Google as an identity provider when `GOOGLE_CLIENT_ID` is set.
+- `infra/cognito.yaml`: Cognito user pool (Essentials tier, email + password, self sign-up with email code), Google identity provider, public app client (code flow, no secret), and a managed login (version 2) domain with its branding.
 - `infra/backend-ecr.yaml`: ECR repository for the backend's Lambda container image (`back/Dockerfile.lambda`).
 - `infra/backend.yaml`: VPC with private subnets, Aurora Serverless v2 PostgreSQL (scales to 0 ACU when idle), and a Lambda function with a public **function URL**, which is the backend URL.
 - `infra/frontend.yaml`: private S3 bucket and CloudFront distribution for the SPA on the **flat-rate Free plan** ($0/month, with the WAF web ACL the plan requires), with an optional custom domain.
@@ -176,7 +202,7 @@ flowchart LR
 
    The steps run in this order:
 
-   1. **Cognito** (`make aws-cognito-deploy`): user pool, app client and Hosted UI domain. Redirect URLs cover localhost and the site's origins. It prints the `.env` lines for local use.
+   1. **Cognito** (`make aws-cognito-deploy`): user pool, Google provider, app client and managed login domain. Needs `GOOGLE_CLIENT_ID/SECRET` in `.env`. Redirect URLs cover localhost and the site's origins. It prints the `.env` lines for local use.
    2. **Backend** (`make aws-backend-deploy`): ECR stack → build and push the Lambda image → backend stack → `aws-backend-migrate` invokes the function with `{"action": "migrate"}` to run Alembic and seeding. It prints the function URL (`https://<id>.lambda-url.us-east-1.on.aws/`).
    3. **Frontend** (`make aws-frontend-deploy`): frontend stack → `npm run build` with `VITE_API_URL=<function URL>` and the `VITE_COGNITO_*` IDs → upload to S3 and invalidate CloudFront → allow the site's origin in the backend's `CORS_ORIGINS` and as a Cognito redirect URL. It prints the site URL.
 

@@ -17,10 +17,10 @@ describe("Home page", () => {
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument()
   })
 
-  it("shows the signed-in user and signs out", async () => {
+  it("shows the signed-in user's email and signs out to the front page", async () => {
     mockFetch(() => ({ body: [] }))
     renderWithQuery(<App />, "/home")
-    expect(await screen.findByText("Anna Kovalenko")).toBeInTheDocument()
+    expect(await screen.findByText("anna@example.com")).toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }))
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument()
     expect(localStorage.getItem("meetings.session")).toBeNull()

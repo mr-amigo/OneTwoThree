@@ -253,7 +253,7 @@ aws-frontend-publish: ## Build the SPA with VITE_API_URL=<function URL>, upload 
 	(cd front && npm ci --no-audit --no-fund && VITE_API_URL="$$api" \
 	  VITE_COGNITO_REGION=$(AWS_REGION) VITE_COGNITO_USER_POOL_ID=$(COGNITO_POOL_ID) \
 	  VITE_COGNITO_CLIENT_ID=$(COGNITO_CLIENT) VITE_COGNITO_DOMAIN=$(call cognito_output,HostedUiDomain) \
-	  VITE_COGNITO_GOOGLE=$(call cognito_output,GoogleEnabled) npm run build) && \
+	  npm run build) && \
 	aws s3 sync front/dist "s3://$$bucket" --delete --exclude index.html \
 	  --cache-control "public,max-age=31536000,immutable" && \
 	aws s3 cp front/dist/index.html "s3://$$bucket/index.html" --cache-control "no-cache" && \
@@ -310,7 +310,7 @@ aws-frontend-https-check: ## Check that https://FRONTEND_DOMAIN answers
 	@echo "DNS: $$(dig +short $(FRONTEND_DOMAIN) | tr '\n' ' ')"
 	curl -fsS -o /dev/null -w "%{http_code} %{url_effective}\n" https://$(FRONTEND_DOMAIN)/
 
-##@ AWS auth (Cognito user pool; Google sign-in once GOOGLE_CLIENT_ID/SECRET are set in .env)
+##@ AWS auth (Cognito user pool with managed login; needs GOOGLE_CLIENT_ID/SECRET in .env)
 
 .PHONY: aws-cognito-deploy
 aws-cognito-deploy: aws-check aws-cognito-stack aws-cognito-env ## Deploy Cognito, then print the lines to add to .env
@@ -318,9 +318,11 @@ aws-cognito-deploy: aws-check aws-cognito-stack aws-cognito-env ## Deploy Cognit
 
 .PHONY: aws-cognito-stack
 aws-cognito-stack: ## Create/update the Cognito stack (redirect URLs = local origins + the site's)
+	@test -n "$(GOOGLE_CLIENT_ID)" -a -n "$(GOOGLE_CLIENT_SECRET)" || { \
+	  echo "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env (Google Cloud OAuth client, see README: Sign-in)"; exit 1; }
 	$(call clear_failed_stack,$(COGNITO_STACK))
 	@# Not echoed: the command line would show the Google client secret.
-	@echo "Deploying $(COGNITO_STACK) (Google sign-in: $(if $(GOOGLE_CLIENT_ID),on,off))"
+	@echo "Deploying $(COGNITO_STACK)"
 	@aws cloudformation deploy --stack-name $(COGNITO_STACK) --template-file infra/cognito.yaml \
 	  --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
 	  --parameter-overrides ProjectName=$(PROJECT) "CallbackUrls=$(COGNITO_CALLBACK_URLS)" \
@@ -337,7 +339,6 @@ aws-cognito-env: ## Print the .env lines for the deployed user pool (replace the
 	@echo "COGNITO_USER_POOL_ID=$(COGNITO_POOL_ID)"
 	@echo "COGNITO_CLIENT_ID=$(COGNITO_CLIENT)"
 	@echo "COGNITO_DOMAIN=$(call cognito_output,HostedUiDomain)"
-	@echo "COGNITO_GOOGLE_ENABLED=$(call cognito_output,GoogleEnabled)"
 	@echo
 
 .PHONY: aws-cognito-outputs
