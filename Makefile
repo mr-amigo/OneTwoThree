@@ -32,6 +32,14 @@ BACKEND_FUNCTION  := $(PROJECT)-backend
 BACKEND_PARAMS    := infra/backend.params.env
 FRONTEND_STACK    := $(PROJECT)-frontend
 COGNITO_STACK     := $(PROJECT)-cognito
+REPORTS_STACK     := $(PROJECT)-reports
+REPORT_BUILDER_FUNCTION := $(PROJECT)-report-builder
+REPORT_MAILER_FUNCTION  := $(PROJECT)-report-mailer
+REPORT_SCHEDULE_EXPRESSION ?= cron(0 7 ? * MON *)
+REPORT_SCHEDULE_TIMEZONE   ?= Europe/Kyiv
+REPORT_SCHEDULE_TARGET     ?= SQS
+REPORT_SENDER_EMAIL        ?= $(REPORT_EMAIL)
+REPORT_RECIPIENT_EMAIL     ?= $(or $(REPORT_EMAIL),$(REPORT_SENDER_EMAIL))
 # Every resource gets this tag (in the templates and as a stack tag).
 STACK_TAGS        := PROJECT_NAME=$(PROJECT)
 
@@ -61,6 +69,7 @@ BACKEND_PARAMS_ARGS = $(shell [ -f $(BACKEND_PARAMS) ] && grep -v -e '^[[:space:
 backend_output  = $(call stack_output,$(BACKEND_STACK),$(1))
 frontend_output = $(call stack_output,$(FRONTEND_STACK),$(1))
 cognito_output  = $(call stack_output,$(COGNITO_STACK),$(1))
+reports_output  = $(call stack_output,$(REPORTS_STACK),$(1))
 API_URL          = $(call backend_output,ApiUrl)
 FRONTEND_ORIGINS = $(call frontend_output,SiteOrigins)
 CORS_ORIGINS_AWS = $(CORS_LOCAL)$(if $(FRONTEND_ORIGINS),$(COMMA)$(FRONTEND_ORIGINS))
@@ -131,7 +140,7 @@ test-back: .env ## Backend tests (starts the db container, creates meetings_test
 	docker compose exec -T db psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -tAc \
 	  "SELECT 1 FROM pg_database WHERE datname = 'meetings_test'" | grep -q 1 || \
 	  docker compose exec -T db psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -c "CREATE DATABASE meetings_test"
-	cd back && TEST_DATABASE_URL=$(TEST_DB_URL) uv run pytest -q
+	cd back && COGNITO_USER_POOL_ID= TEST_DATABASE_URL=$(TEST_DB_URL) uv run pytest -q
 
 .PHONY: test-front
 test-front: ## Frontend tests
@@ -352,13 +361,85 @@ aws-cognito-destroy: aws-check ## Delete the Cognito stack — ALL user accounts
 	aws cloudformation delete-stack --stack-name $(COGNITO_STACK)
 	aws cloudformation wait stack-delete-complete --stack-name $(COGNITO_STACK)
 
+##@ AWS reports (weekly CSV report: EventBridge Scheduler -> SQS -> Builder Lambda -> S3 -> Mailer Lambda -> SES)
+
+.PHONY: aws-reports-deploy
+aws-reports-deploy: aws-check aws-backend-push aws-reports-stack ## Build/push image and deploy the weekly reports stack
+	@echo
+	@echo "Reports bucket: $(call reports_output,ReportsBucketName)"
+	@echo "Queue URL:      $(call reports_output,QueueUrl)"
+	@echo "DLQ URL:        $(call reports_output,DLQUrl)"
+
+.PHONY: aws-reports-backend-outputs
+aws-reports-backend-outputs: ## Update the backend stack if VPC route table outputs are not exported yet
+	@if [ -z "$(call backend_output,PrivateRouteTableId)" ]; then \
+	  echo "Updating $(BACKEND_STACK) to export VPC route table outputs..."; \
+	  $(MAKE) --no-print-directory aws-backend-stack KEEP_IMAGE=1; \
+	fi
+
+.PHONY: aws-reports-stack
+aws-reports-stack: aws-reports-backend-outputs ## Create/update the reports stack (S3, S3 endpoint, SQS+DLQ, Builder & Mailer Lambdas, Scheduler, SES)
+	@test -n "$(REPORT_SENDER_EMAIL)" || { echo "Set REPORT_EMAIL=your@email.com in .env first"; exit 1; }
+	@test -n "$(ECR_URI)" || { echo "ECR repository not found: run \`make aws-backend-deploy\` first"; exit 1; }
+	$(call clear_failed_stack,$(REPORTS_STACK))
+	aws cloudformation deploy --stack-name $(REPORTS_STACK) --template-file infra/reports.yaml \
+	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
+	  --parameter-overrides ProjectName=$(PROJECT) ImageUri=$(ECR_URI):$(TAG) \
+	    Architecture=$(LAMBDA_ARCH) \
+	    VpcId=$(call backend_output,VpcId) \
+	    "PrivateSubnetIds=$(call backend_output,PrivateSubnetIds)" \
+	    BackendSecurityGroupId=$(call backend_output,BackendSecurityGroupId) \
+	    PrivateRouteTableId=$(call backend_output,PrivateRouteTableId) \
+	    DbHost=$(call backend_output,DbEndpoint) \
+	    DbPort=$(call backend_output,DbPort) \
+	    DbName=$(call backend_output,DbName) \
+	    DbUsername=$(call backend_output,DbUsername) \
+	    DbSecretArn=$(call backend_output,DbSecretArn) \
+	    ReportSenderEmail=$(REPORT_SENDER_EMAIL) \
+	    ReportRecipientEmail=$(REPORT_RECIPIENT_EMAIL) \
+	    "ScheduleExpression=$(REPORT_SCHEDULE_EXPRESSION)" \
+	    ScheduleTimezone=$(REPORT_SCHEDULE_TIMEZONE) \
+	    ScheduleTargetMode=$(REPORT_SCHEDULE_TARGET) \
+	    "FailOnWeek=$(FAIL_ON_WEEK)"
+
+.PHONY: report-now
+report-now: aws-check ## Send a report build request to SQS (e.g. `make report-now WEEK=2026-W40`)
+	@queue="$(call reports_output,QueueUrl)"; \
+	[ -n "$$queue" ] || { echo "Reports stack not deployed: run \`make aws-reports-deploy\` first"; exit 1; }; \
+	week="$(WEEK)"; \
+	if [ -z "$$week" ]; then \
+	  week=$$(python3 -c 'import datetime; d = datetime.date.today() - datetime.timedelta(days=7); y, w, _ = d.isocalendar(); print(f"{y:04d}-W{w:02d}")'); \
+	fi; \
+	echo "Sending report request for $$week to $$queue"; \
+	aws sqs send-message --queue-url "$$queue" --message-body "{\"week\": \"$$week\"}"
+
+.PHONY: report-logs
+report-logs: aws-check ## Show recent CloudWatch logs for both report-builder and report-mailer Lambdas
+	@echo "=== /aws/lambda/$(REPORT_BUILDER_FUNCTION) ==="
+	-aws logs tail /aws/lambda/$(REPORT_BUILDER_FUNCTION) --since 60m
+	@echo
+	@echo "=== /aws/lambda/$(REPORT_MAILER_FUNCTION) ==="
+	-aws logs tail /aws/lambda/$(REPORT_MAILER_FUNCTION) --since 60m
+
+.PHONY: aws-reports-outputs
+aws-reports-outputs: ## Show reports stack outputs
+	@aws cloudformation describe-stacks --stack-name $(REPORTS_STACK) \
+	  --query "Stacks[0].Outputs[].[OutputKey, OutputValue]" --output table
+
+.PHONY: aws-reports-destroy
+aws-reports-destroy: aws-check ## Empty the reports bucket and delete the reports stack
+	@read -p "Delete stack $(REPORTS_STACK) in $(AWS_REGION)? [y/N] " ok && [ "$$ok" = y ]
+	@bucket="$(call reports_output,ReportsBucketName)"; [ -z "$$bucket" ] || aws s3 rm "s3://$$bucket" --recursive --quiet
+	aws cloudformation delete-stack --stack-name $(REPORTS_STACK)
+	aws cloudformation wait stack-delete-complete --stack-name $(REPORTS_STACK)
+
 ##@ AWS (all parts)
 
 .PHONY: aws-deploy
 aws-deploy: aws-cognito-deploy aws-backend-deploy aws-frontend-deploy ## Deploy everything: Cognito, backend, then the frontend built with their IDs and URL
 
 .PHONY: aws-destroy
-aws-destroy: aws-frontend-destroy aws-backend-destroy aws-cognito-destroy ## Delete everything on AWS (each stack asks first)
+aws-destroy: aws-frontend-destroy aws-reports-destroy aws-backend-destroy aws-cognito-destroy ## Delete everything on AWS (each stack asks first)
 
 ##@ Help
 

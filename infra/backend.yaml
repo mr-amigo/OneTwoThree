@@ -130,6 +130,27 @@ Resources:
         - Key: PROJECT_NAME
           Value: !Ref ProjectName
 
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-private-rt" }
+        - Key: PROJECT_NAME
+          Value: !Ref ProjectName
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
   # --- Security groups ---
   BackendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -324,6 +345,27 @@ Outputs:
   DbEndpoint:
     Description: Aurora writer endpoint (reachable only from inside the VPC).
     Value: !GetAtt DbCluster.Endpoint.Address
+  DbPort:
+    Description: Aurora PostgreSQL port.
+    Value: !GetAtt DbCluster.Endpoint.Port
+  DbName:
+    Description: Database name.
+    Value: !Ref DbName
+  DbUsername:
+    Description: Database master username.
+    Value: !Ref DbUsername
   DbSecretArn:
     Description: Secrets Manager secret with the database master credentials.
     Value: !Ref DbSecret
+  VpcId:
+    Description: VPC ID where the backend and Aurora run.
+    Value: !Ref Vpc
+  PrivateSubnetIds:
+    Description: Comma-separated private subnet IDs in the VPC.
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+  BackendSecurityGroupId:
+    Description: Security group ID allowed to connect to Aurora on port 5432.
+    Value: !Ref BackendSecurityGroup
+  PrivateRouteTableId:
+    Description: Route table ID associated with the private subnets (used by the S3 gateway endpoint).
+    Value: !Ref PrivateRouteTable

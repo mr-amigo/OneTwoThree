@@ -29,6 +29,7 @@ back/             # FastAPI + SQLAlchemy 2 + Alembic
   app/
     main.py       # app, CORS, error handlers
     lambda_handler.py # AWS Lambda entry point (Mangum) + migrate action
+    reports/      # Weekly CSV report builder (weekly.py) and its Lambda handler (lambda_handler.py)
     models.py     # User, Meeting (owner_id → users), Participant, meeting_participants
     auth.py       # Cognito ID-token verification, current user
     schemas.py    # Pydantic request/response models
@@ -173,6 +174,7 @@ Everything is deployed to **us-east-1**. CloudFront accepts custom-domain certif
 - `infra/backend-ecr.yaml`: ECR repository for the backend's Lambda container image (`back/Dockerfile.lambda`).
 - `infra/backend.yaml`: VPC with private subnets, Aurora Serverless v2 PostgreSQL (scales to 0 ACU when idle), and a Lambda function with a public **function URL**, which is the backend URL.
 - `infra/frontend.yaml`: private S3 bucket and CloudFront distribution for the SPA on the **flat-rate Free plan** ($0/month, with the WAF web ACL the plan requires), with an optional custom domain.
+- `infra/reports.yaml`: event-driven weekly report pipeline — EventBridge Scheduler (`cron(0 7 ? * MON *)` in `Europe/Kyiv`), SQS queue (`report-requests`) with a DLQ, Builder Lambda in the VPC writing `reports/<week>.csv` to S3 through a free S3 Gateway VPC Endpoint, and Mailer Lambda outside the VPC sending the CSV attachment via Amazon SES on `s3:ObjectCreated:*`.
 
 Every resource carries the tag `PROJECT_NAME=<project>`. It is set in the templates and as a stack tag, and `cert.sh` puts it on the ACM certificate. Some resource types can't be tagged in AWS at all: function URLs, Lambda permissions, the bucket policy, the CloudFront origin access control, Route 53 records and the pricing plan subscription.
 
