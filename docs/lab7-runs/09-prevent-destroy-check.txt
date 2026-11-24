@@ -1,0 +1,150 @@
+# What if someone changes an attribute that forces replacement? (temporary override file, plan only, -lock=false)
+#   aws_cognito_user_pool.main: username_configuration.case_sensitive = true
+#   aws_s3_bucket.reports:      bucket = "meetings-reports-renamed-test"
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+-/+ destroy and then create replacement
+
+Terraform planned the following actions, but then encountered a problem:
+
+  # aws_cognito_user_pool.main must be replaced
+-/+ resource "aws_cognito_user_pool" "main" {
+      ~ arn                        = "arn:aws:cognito-idp:us-east-1:027824090051:userpool/us-east-1_8hSfQWoBh" -> (known after apply)
+      ~ creation_date              = "2026-09-29T11:24:48Z" -> (known after apply)
+      + custom_domain              = (known after apply)
+      ~ domain                     = "meetings-027824090051" -> (known after apply)
+      + email_verification_message = (known after apply)
+      + email_verification_subject = (known after apply)
+      ~ endpoint                   = "cognito-idp.us-east-1.amazonaws.com/us-east-1_8hSfQWoBh" -> (known after apply)
+      ~ estimated_number_of_users  = 3 -> (known after apply)
+      ~ id                         = "us-east-1_8hSfQWoBh" -> (known after apply)
+      ~ last_modified_date         = "2026-11-24T19:55:35Z" -> (known after apply)
+        name                       = "meetings-users"
+      + sms_verification_message   = (known after apply)
+      - tags                       = {} -> null
+        # (8 unchanged attributes hidden)
+
+      ~ password_policy {
+          - password_history_size            = 0 -> null
+            # (6 unchanged attributes hidden)
+        }
+
+      ~ sign_in_policy (known after apply)
+      - sign_in_policy {
+          - allowed_first_auth_factors = [
+              - "PASSWORD",
+            ] -> null
+        }
+
+      ~ sms_configuration (known after apply)
+
+      ~ username_configuration {
+          ~ case_sensitive = false -> true # forces replacement
+        }
+
+      ~ verification_message_template (known after apply)
+      - verification_message_template {
+          - default_email_option  = "CONFIRM_WITH_CODE" -> null
+            # (5 unchanged attributes hidden)
+        }
+
+        # (4 unchanged blocks hidden)
+    }
+
+  # aws_s3_bucket.reports must be replaced
+-/+ resource "aws_s3_bucket" "reports" {
+      + acceleration_status         = (known after apply)
+      + acl                         = (known after apply)
+      ~ arn                         = "arn:aws:s3:::meetings-reports-027824090051-us-east-1" -> (known after apply)
+      ~ bucket                      = "meetings-reports-027824090051-us-east-1" -> "meetings-reports-renamed-test" # forces replacement
+      ~ bucket_domain_name          = "meetings-reports-027824090051-us-east-1.s3.amazonaws.com" -> (known after apply)
+      ~ bucket_namespace            = "global" -> (known after apply)
+      + bucket_prefix               = (known after apply)
+      ~ bucket_region               = "us-east-1" -> (known after apply)
+      ~ bucket_regional_domain_name = "meetings-reports-027824090051-us-east-1.s3.us-east-1.amazonaws.com" -> (known after apply)
+      ~ hosted_zone_id              = "Z3AQBSTGFYJSTF" -> (known after apply)
+      ~ id                          = "meetings-reports-027824090051-us-east-1" -> (known after apply)
+      ~ object_lock_enabled         = false -> (known after apply)
+      + policy                      = (known after apply)
+      ~ request_payer               = "BucketOwner" -> (known after apply)
+      - tags                        = {} -> null
+      + website_domain              = (known after apply)
+      + website_endpoint            = (known after apply)
+        # (3 unchanged attributes hidden)
+
+      ~ cors_rule (known after apply)
+
+      ~ grant (known after apply)
+      - grant {
+          - id          = "3b15c67067737fa095c35ed2f6858298976b4519cb17793d04205a23cf5c38cc" -> null
+          - permissions = [
+              - "FULL_CONTROL",
+            ] -> null
+          - type        = "CanonicalUser" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      ~ lifecycle_rule (known after apply)
+      - lifecycle_rule {
+          - abort_incomplete_multipart_upload_days = 0 -> null
+          - enabled                                = true -> null
+          - id                                     = "expire-reports-after-90-days" -> null
+          - prefix                                 = "reports/" -> null
+          - tags                                   = {} -> null
+
+          - expiration {
+              - days                         = 90 -> null
+              - expired_object_delete_marker = false -> null
+                # (1 unchanged attribute hidden)
+            }
+        }
+
+      ~ logging (known after apply)
+
+      ~ object_lock_configuration (known after apply)
+
+      ~ replication_configuration (known after apply)
+
+      ~ server_side_encryption_configuration (known after apply)
+      - server_side_encryption_configuration {
+          - rule {
+              - bucket_key_enabled = false -> null
+
+              - apply_server_side_encryption_by_default {
+                  - sse_algorithm     = "AES256" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+        }
+
+      ~ versioning (known after apply)
+      - versioning {
+          - enabled    = false -> null
+          - mfa_delete = false -> null
+        }
+
+      ~ website (known after apply)
+    }
+
+Plan: 2 to add, 0 to change, 2 to destroy.
+
+Error: Instance cannot be destroyed
+
+  on auth.tf line 5:
+   5: resource "aws_cognito_user_pool" "main" {
+
+Resource aws_cognito_user_pool.main has lifecycle.prevent_destroy set, but
+the plan calls for this resource to be destroyed. To avoid this error and
+continue with the plan, either disable lifecycle.prevent_destroy or reduce
+the scope of the plan using the -target option.
+
+Error: Instance cannot be destroyed
+
+  on reports.tf line 126:
+ 126: resource "aws_s3_bucket" "reports" {
+
+Resource aws_s3_bucket.reports has lifecycle.prevent_destroy set, but the
+plan calls for this resource to be destroyed. To avoid this error and
+continue with the plan, either disable lifecycle.prevent_destroy or reduce
+the scope of the plan using the -target option.
