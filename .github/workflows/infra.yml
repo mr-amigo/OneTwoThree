@@ -90,7 +90,7 @@ jobs:
         id: plan
         run: |
           set -o pipefail
-          terraform plan -no-color -concise -lock-timeout=5m -detailed-exitcode | tee plan.txt || code=$?
+          terraform plan -no-color -concise -lock-timeout=5m -detailed-exitcode 2>&1 | tee plan.txt || code=$?
           code=${code:-0}
           echo "exitcode=$code" >> "$GITHUB_OUTPUT"
           [ "$code" -ne 1 ]
@@ -102,7 +102,7 @@ jobs:
             echo "### terraform plan"
             echo
             echo '```'
-            grep -E '^(Plan:|No changes\.|Error:|  # .* (will|must) be)' plan.txt || true
+            grep -E '^(Plan:|No changes\.|Error:|│ Error:|  # .* (will|must) be)' plan.txt || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -114,12 +114,15 @@ jobs:
             const fs = require('fs');
             let plan = fs.readFileSync('infra/plan.txt', 'utf8');
             const lines = plan.split('\n');
-            const headline = lines.filter(l => /^(Plan:|No changes\.|Error:)/.test(l)).join('\n');
+            const headline = lines.filter(l => /^(Plan:|No changes\.|Error:|│ Error:)/.test(l)).join('\n');
             const start = lines.findIndex(l => l.startsWith('Terraform used') || l.startsWith('Terraform will perform'));
             plan = (start >= 0 ? lines.slice(start) : lines).join('\n');
             if (plan.length > 60000) plan = plan.slice(0, 60000) + '\n... (truncated; full plan in the job log)';
             const marker = '<!-- terraform-plan -->';
-            const body = `${marker}\n#### terraform plan (${{ steps.plan.outputs.exitcode == '2' && 'changes' || 'no changes' }}) for \`${context.sha.slice(0, 7)}\`\n\n` +
+            const code = '${{ steps.plan.outputs.exitcode }}';
+            const state = code === '2' ? 'changes' : code === '0' ? 'no changes' : 'failed';
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = `${marker}\n#### terraform plan (${state}) for \`${sha}\`\n\n` +
               '```\n' + headline + '\n```\n\n<details><summary>Full plan</summary>\n\n```\n' + plan + '\n```\n</details>\n\n' +
               `Applied by the pipeline after the merge to main. [Run log](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
             const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number });
