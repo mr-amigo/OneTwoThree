@@ -29,6 +29,8 @@ Parameters:
 
 Resources:
   UserPool:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub ${ProjectName}-users
@@ -65,6 +67,8 @@ Resources:
   # across AWS, hence the account ID. Google's OAuth client points at this domain, so the prefix
   # is known before the stack exists: https://<ProjectName>-<account id>.auth.<region>.amazoncognito.com
   UserPoolDomain:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref UserPool
@@ -73,6 +77,8 @@ Resources:
 
   # Without branding, a version 2 domain has no sign-in page to show. Cognito's own look is enough.
   ManagedLoginBranding:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Cognito::ManagedLoginBranding
     DependsOn: UserPoolDomain
     Properties:
@@ -81,6 +87,8 @@ Resources:
       UseCognitoProvidedValues: true
 
   GoogleIdentityProvider:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Cognito::UserPoolIdentityProvider
     Properties:
       UserPoolId: !Ref UserPool
@@ -98,6 +106,8 @@ Resources:
   # Public client (no secret: a browser cannot keep one; PKCE protects the code exchange instead).
   # The browser only talks to managed login and the token endpoint; the backend verifies the tokens.
   UserPoolClient:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Cognito::UserPoolClient
     # A client that names a provider that does not exist yet fails to create.
     DependsOn: GoogleIdentityProvider

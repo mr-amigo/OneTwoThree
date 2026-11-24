@@ -39,6 +39,8 @@ Conditions:
   HasBudgetEmail: !Not [!Equals [!Ref BudgetAlertEmail, ""]]
 Resources:
   ParserLogGroup:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/${ProjectName}-agenda-parser
@@ -46,6 +48,8 @@ Resources:
       Tags:
         - { Key: PROJECT_NAME, Value: !Ref ProjectName }
   ParserRole:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -80,6 +84,8 @@ Resources:
       Tags:
         - { Key: PROJECT_NAME, Value: !Ref ProjectName }
   ParserFunction:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::Function
     DependsOn: ParserLogGroup
     Properties:
@@ -105,6 +111,8 @@ Resources:
       Tags:
         - { Key: PROJECT_NAME, Value: !Ref ProjectName }
   ParserFunctionUrl:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::Url
     Properties:
       AuthType: NONE
@@ -115,6 +123,8 @@ Resources:
         AllowHeaders: [authorization, content-type]
         MaxAge: 86400
   ParserFunctionUrlPermission:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref ParserFunction
@@ -122,6 +132,8 @@ Resources:
       Principal: "*"
       FunctionUrlAuthType: NONE
   ParserFunctionInvokePermission:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref ParserFunction
@@ -129,6 +141,8 @@ Resources:
       Principal: "*"
       InvokedViaFunctionUrl: true
   MonthlyAiBudget:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Budgets::Budget
     Condition: HasBudgetEmail
     Properties:

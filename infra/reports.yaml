@@ -89,6 +89,8 @@ Resources:
   # SES Email Identity (sandbox requires verifying both sender and recipient)
   # =====================================================================
   SenderEmailIdentity:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::SES::EmailIdentity
     Properties:
       EmailIdentity: !Ref ReportSenderEmail
@@ -97,6 +99,8 @@ Resources:
           Value: !Ref ProjectName
 
   RecipientEmailIdentity:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::SES::EmailIdentity
     Condition: HasSeparateRecipient
     Properties:
@@ -109,6 +113,8 @@ Resources:
   # S3 Gateway VPC Endpoint (free private path from VPC subnets to S3)
   # =====================================================================
   S3GatewayEndpoint:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::EC2::VPCEndpoint
     Properties:
       VpcId: !Ref VpcId
@@ -121,6 +127,8 @@ Resources:
   # Mailer Lambda (outside VPC; triggered by S3 ObjectCreated on reports/*.csv)
   # =====================================================================
   ReportMailerLogGroup:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
       Tags:
@@ -130,6 +138,8 @@ Resources:
       RetentionInDays: !Ref LogRetentionDays
 
   ReportMailerRole:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::IAM::Role
     Properties:
       Tags:
@@ -161,6 +171,8 @@ Resources:
                 Resource: !Sub arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*
 
   ReportMailerFunction:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::Function
     Properties:
       Tags:
@@ -238,6 +250,8 @@ Resources:
               return {"status": "ok", "trigger": "s3", "sent": sent}
 
   ReportMailerS3Permission:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt ReportMailerFunction.Arn
@@ -250,6 +264,8 @@ Resources:
   # Reports S3 Bucket (private, 90-day lifecycle, notifies Mailer on reports/*.csv)
   # =====================================================================
   ReportsBucket:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::S3::Bucket
     DependsOn: ReportMailerS3Permission
     Properties:
@@ -287,6 +303,8 @@ Resources:
   # SQS Queue + Dead-Letter Queue (decouples schedule/manual requests from builder)
   # =====================================================================
   ReportRequestsDLQ:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub ${ProjectName}-report-requests-dlq
@@ -296,6 +314,8 @@ Resources:
           Value: !Ref ProjectName
 
   ReportRequestsQueue:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub ${ProjectName}-report-requests
@@ -312,6 +332,8 @@ Resources:
   # Builder Lambda (same container image as API, inside VPC, writes CSV to S3)
   # =====================================================================
   ReportBuilderLogGroup:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
       Tags:
@@ -321,6 +343,8 @@ Resources:
       RetentionInDays: !Ref LogRetentionDays
 
   ReportBuilderRole:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::IAM::Role
     Properties:
       Tags:
@@ -353,6 +377,8 @@ Resources:
                 Resource: !Sub ${ReportsBucket.Arn}/reports/*
 
   ReportBuilderFunction:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::Function
     DependsOn: S3GatewayEndpoint
     Properties:
@@ -388,6 +414,8 @@ Resources:
           FAIL_ON_WEEK: !Ref FailOnWeek
 
   ReportBuilderEventSourceMapping:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       EventSourceArn: !GetAtt ReportRequestsQueue.Arn
@@ -399,6 +427,8 @@ Resources:
   # EventBridge Scheduler (Monday 07:00 Europe/Kyiv -> SQS queue or Builder Lambda)
   # =====================================================================
   ReportScheduleRole:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::IAM::Role
     Properties:
       Tags:
@@ -427,6 +457,8 @@ Resources:
                 Resource: !GetAtt ReportBuilderFunction.Arn
 
   ReportSchedule:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Type: AWS::Scheduler::Schedule
     Properties:
       Name: !Sub ${ProjectName}-weekly-report
