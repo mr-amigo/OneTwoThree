@@ -102,4 +102,5 @@ def test_meetings_are_personal(client: TestClient):
     assert client.get(url, headers=oleh).status_code == 404
     assert client.put(url, json=meeting_payload(title="Hijack"), headers=oleh).status_code == 404
     assert client.delete(url, headers=oleh).status_code == 404
+    assert client.put(f"{url}/agenda", json={}, headers=oleh).status_code == 404
     assert client.get(url, headers=anna).json()["title"] == "Sprint planning"

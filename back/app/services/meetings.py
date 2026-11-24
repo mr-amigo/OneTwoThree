@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Meeting, Participant, User
-from app.schemas import MeetingCreate
+from app.schemas import MeetingAgendaUpdate, MeetingCreate
 from app.services.errors import NotFoundError
 
 # Meetings are personal: every query is scoped to the owner's user ID.
@@ -54,6 +54,13 @@ def _apply(meeting: Meeting, data: MeetingCreate, participants: list[Participant
     meeting.starts_at = data.starts_at
     meeting.ends_at = data.ends_at
     meeting.participants = participants
+    # Only touch agenda fields the client actually sent: a PUT without them keeps the agenda.
+    if "agenda_items" in data.model_fields_set:
+        meeting.agenda_items = [i.model_dump(mode="json") for i in data.agenda_items]
+    if "action_items" in data.model_fields_set:
+        meeting.action_items = [i.model_dump(mode="json") for i in data.action_items]
+    if "ai_suggestion" in data.model_fields_set:
+        meeting.ai_suggestion = data.ai_suggestion.model_dump(mode="json") if data.ai_suggestion else None
 
 
 def create_meeting(db: Session, data: MeetingCreate, user: User) -> Meeting:
@@ -67,6 +74,15 @@ def create_meeting(db: Session, data: MeetingCreate, user: User) -> Meeting:
 def update_meeting(db: Session, meeting_id: UUID, data: MeetingCreate, user: User) -> Meeting:
     meeting = get_meeting(db, meeting_id, user)
     _apply(meeting, data, _load_participants(db, data.participant_ids))
+    db.commit()
+    return get_meeting(db, meeting.id, user)
+
+
+def save_meeting_agenda(db: Session, meeting_id: UUID, data: MeetingAgendaUpdate, user: User) -> Meeting:
+    meeting = get_meeting(db, meeting_id, user)
+    meeting.agenda_items = [i.model_dump(mode="json") for i in data.agenda_items]
+    meeting.action_items = [i.model_dump(mode="json") for i in data.action_items]
+    meeting.ai_suggestion = data.ai_suggestion.model_dump(mode="json") if data.ai_suggestion else None
     db.commit()
     return get_meeting(db, meeting.id, user)
 

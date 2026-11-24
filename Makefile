@@ -150,7 +150,7 @@ test-front: ## Frontend tests
 lint: ## Code style checks (same as CI)
 	cd back && uv run ruff check . && uv run ruff format --check .
 	cd front && npm run lint && npm run format:check && npm run typecheck
-	uvx cfn-lint infra/*.yaml
+	uvx cfn-lint infra/*.y*ml
 
 .PHONY: format
 format: ## Auto-format backend and frontend
@@ -260,6 +260,7 @@ aws-frontend-publish: ## Build the SPA with VITE_API_URL=<function URL>, upload 
 	[ -n "$(COGNITO_POOL_ID)" ] || { echo "Cognito not deployed: run \`make aws-cognito-deploy\` first"; exit 1; }; \
 	echo "Building frontend with VITE_API_URL=$$api" && \
 	(cd front && npm ci --no-audit --no-fund && VITE_API_URL="$$api" \
+	  VITE_PARSER_URL="$(PARSER_URL)" \
 	  VITE_COGNITO_REGION=$(AWS_REGION) VITE_COGNITO_USER_POOL_ID=$(COGNITO_POOL_ID) \
 	  VITE_COGNITO_CLIENT_ID=$(COGNITO_CLIENT) VITE_COGNITO_DOMAIN=$(call cognito_output,HostedUiDomain) \
 	  npm run build) && \
@@ -273,6 +274,7 @@ aws-frontend-publish: ## Build the SPA with VITE_API_URL=<function URL>, upload 
 aws-frontend-cors: ## Allow the frontend's origins in the backend's CORS settings and as Cognito redirect URLs (keeps the current image)
 	@$(MAKE) --no-print-directory aws-backend-stack KEEP_IMAGE=1
 	@$(MAKE) --no-print-directory aws-cognito-stack
+	@[ -z "$(PARSER_URL)" ] || $(MAKE) --no-print-directory aws-ai-stack KEEP_IMAGE=1
 
 .PHONY: aws-frontend-outputs
 aws-frontend-outputs: ## Show frontend stack outputs (site URL, bucket, distribution)
@@ -436,10 +438,10 @@ aws-reports-destroy: aws-check ## Empty the reports bucket and delete the report
 ##@ AWS (all parts)
 
 .PHONY: aws-deploy
-aws-deploy: aws-cognito-deploy aws-backend-deploy aws-frontend-deploy ## Deploy everything: Cognito, backend, then the frontend built with their IDs and URL
+aws-deploy: aws-cognito-deploy aws-backend-deploy aws-ai-deploy aws-frontend-deploy ## Deploy everything: Cognito, backend, then the frontend built with their IDs and URL
 
 .PHONY: aws-destroy
-aws-destroy: aws-frontend-destroy aws-reports-destroy aws-backend-destroy aws-cognito-destroy ## Delete everything on AWS (each stack asks first)
+aws-destroy: aws-frontend-destroy aws-ai-destroy aws-reports-destroy aws-backend-destroy aws-cognito-destroy ## Delete everything on AWS (each stack asks first)
 
 ##@ Help
 
@@ -448,3 +450,56 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n"} \
 	  /^[a-zA-Z_.-]+:.*?##/ { printf "  \033[36m%-26s\033[0m %s\n", $$1, $$2 } \
 	  /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
+
+##@ AI agenda parser (Lab 6: Lambda + function URL; OpenAI API or Claude on Bedrock)
+
+AI_STACK     := $(PROJECT)-ai
+PARSER_PROVIDER ?= openai
+PARSER_MODEL    ?= gpt-5.4-mini
+BUDGET_EMAIL  = $(or $(BUDGET_ALERT_EMAIL),$(REPORT_EMAIL))
+PARSER_URL    = $(call stack_output,$(AI_STACK),ParserUrl)
+# .env first, then the provider/model given to make (`make parse PARSER_PROVIDER=bedrock PARSER_MODEL=...`)
+LLM_ENV       = set -a; [ -f .env ] && . ./.env; set +a; \
+                export PARSER_PROVIDER=$(PARSER_PROVIDER) PARSER_MODEL=$(PARSER_MODEL);
+
+.PHONY: aws-ai-deploy
+aws-ai-deploy: aws-check aws-backend-push aws-ai-stack ## Build/push the image and deploy the parser stack (OPENAI_API_KEY, or Bedrock model access)
+	@echo "Parser URL: $(PARSER_URL)   (rebuild the frontend with: make aws-frontend-publish)"
+
+.PHONY: aws-ai-stack
+aws-ai-stack: ## Create/update the parser stack (Lambda, function URL, $5 budget); KEEP_IMAGE=1 keeps the current image
+	$(call clear_failed_stack,$(AI_STACK))
+	@test -n "$(BUDGET_EMAIL)" || { echo "Set BUDGET_ALERT_EMAIL (or REPORT_EMAIL) in .env"; exit 1; }
+	@test -n "$(COGNITO_POOL_ID)" || { echo "Cognito not deployed: run \`make aws-cognito-deploy\` first"; exit 1; }
+	@[ "$(PARSER_PROVIDER)" != openai ] || test -n "$(OPENAI_API_KEY)" || { echo "Set OPENAI_API_KEY in .env"; exit 1; }
+	@echo "Deploying $(AI_STACK): provider=$(PARSER_PROVIDER) model=$(PARSER_MODEL) (API key not printed)"
+	@aws cloudformation deploy --stack-name $(AI_STACK) --template-file infra/ai.yml \
+	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
+	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(ECR_URI):$(TAG)) \
+	    Architecture=$(LAMBDA_ARCH) ParserProvider=$(PARSER_PROVIDER) ParserModel=$(PARSER_MODEL) \
+	    "OpenAiApiKey=$(OPENAI_API_KEY)" "CorsOrigins=$(CORS_ORIGINS_AWS)" \
+	    CognitoUserPoolId=$(COGNITO_POOL_ID) CognitoClientId=$(COGNITO_CLIENT) \
+	    BudgetAlertEmail=$(BUDGET_EMAIL)
+
+.PHONY: aws-ai-logs
+aws-ai-logs: ## Show parser logs (one JSON line per parse: model, tokens, latency, cost)
+	aws logs tail /aws/lambda/$(PROJECT)-agenda-parser --since 60m
+
+.PHONY: aws-ai-destroy
+aws-ai-destroy: aws-check ## Delete the parser stack
+	@read -p "Delete stack $(AI_STACK) in $(AWS_REGION)? [y/N] " ok && [ "$$ok" = y ]
+	aws cloudformation delete-stack --stack-name $(AI_STACK)
+	aws cloudformation wait stack-delete-complete --stack-name $(AI_STACK)
+
+.PHONY: llm-hello
+llm-hello: ## One call to the parser's LLM (PARSER_PROVIDER/PARSER_MODEL): answer, stop_reason, token usage
+	@$(LLM_ENV) cd back && uv run python -m app.ai.cli hello
+
+.PHONY: parse
+parse: ## Parse pasted text: make parse TEXT="Mon 10:00 pricing sync 45m"
+	@test -n "$(TEXT)" || { echo 'Usage: make parse TEXT="..."'; exit 1; }
+	@$(LLM_ENV) cd back && uv run python -m app.ai.cli parse "$(TEXT)"
+
+.PHONY: bedrock-check
+bedrock-check: ## Is this AWS account ready for PARSER_PROVIDER=bedrock? Access, quotas, one call per Bedrock API
+	@$(LLM_ENV) cd back && uv run python -m app.ai.bedrock_check

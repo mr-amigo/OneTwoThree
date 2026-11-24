@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     # when empty it is downloaded from the issuer on first use.
     cognito_jwks: str = ""
 
+    # Agenda parser LLM. PARSER_PROVIDER: "openai" (OpenAI API, needs OPENAI_API_KEY) or "bedrock"
+    # (Claude on Amazon Bedrock through the IAM role). PARSER_MODEL must be a model of that provider.
+    parser_provider: str = "openai"
+    parser_model: str = "gpt-5.4-mini"
+    openai_api_key: str = ""
+    # reasoning_effort for OpenAI reasoning models; empty = leave it out (for models without reasoning).
+    openai_reasoning_effort: str = "low"
+    # POST /api/ai/parse-agenda on the main API: for local Docker Compose only. On AWS the API runs in
+    # the VPC without a route to Bedrock; the parser Lambda function URL serves the browser there.
+    parser_local_endpoint: bool = False
+
     @property
     def sqlalchemy_url(self) -> URL:
         if self.database_url:

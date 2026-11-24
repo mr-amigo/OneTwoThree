@@ -10,6 +10,40 @@ export interface User {
   name: string | null
 }
 
+export interface AgendaItem {
+  topic: string
+  owner: string | null
+  minutes: number | null
+}
+
+export interface ActionItem {
+  task: string
+  owner: string | null
+  due: string | null
+}
+
+export interface ParsedAgenda {
+  title: string | null
+  starts_at: string | null
+  duration_minutes: number | null
+  items: AgendaItem[]
+  action_items: ActionItem[]
+  language: string
+}
+
+/** What the parser suggested, with the model and prompt version that produced it. */
+export interface AiSuggestion {
+  agenda: ParsedAgenda
+  model: string
+  prompt_version: string
+}
+
+export interface AgendaSave {
+  agenda_items: AgendaItem[]
+  action_items: ActionItem[]
+  ai_suggestion: AiSuggestion | null
+}
+
 export interface Meeting {
   id: string
   title: string
@@ -19,6 +53,9 @@ export interface Meeting {
   starts_at: string
   ends_at: string
   owner_id: string | null
+  agenda_items?: AgendaItem[]
+  action_items?: ActionItem[]
+  ai_suggestion?: AiSuggestion | null
   participants: Participant[]
   created_at: string
 }

@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ListChecks,
   ExternalLink,
   MapPin,
   Pencil,
@@ -58,15 +59,31 @@ function useNow(): Date {
 interface MeetingActions {
   onEdit: (meeting: Meeting) => void
   onDelete: (meeting: Meeting) => void
+  onAgenda?: (meeting: Meeting) => void
 }
 
-function MeetingDetails({ meeting, onEdit, onDelete }: { meeting: Meeting } & MeetingActions) {
+function MeetingDetails({
+  meeting,
+  onEdit,
+  onDelete,
+  onAgenda,
+}: { meeting: Meeting } & MeetingActions) {
   const start = new Date(meeting.starts_at)
   return (
     <div className="space-y-3 text-sm">
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-base leading-snug font-semibold">{meeting.title}</h4>
         <div className="-mt-1 -mr-2 flex shrink-0">
+          {onAgenda && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Agenda for ${meeting.title}`}
+              onClick={() => onAgenda(meeting)}
+            >
+              <ListChecks />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -121,7 +138,12 @@ function MeetingDetails({ meeting, onEdit, onDelete }: { meeting: Meeting } & Me
   )
 }
 
-function MeetingBlock({ segment, onEdit, onDelete }: { segment: DaySegment } & MeetingActions) {
+function MeetingBlock({
+  segment,
+  onEdit,
+  onDelete,
+  onAgenda,
+}: { segment: DaySegment } & MeetingActions) {
   const [open, setOpen] = useState(false)
   const { meeting, startMin, endMin, column, columns } = segment
   // Close the details before handing over to the edit or delete dialog.
@@ -160,6 +182,7 @@ function MeetingBlock({ segment, onEdit, onDelete }: { segment: DaySegment } & M
           meeting={meeting}
           onEdit={closeThen(onEdit)}
           onDelete={closeThen(onDelete)}
+          onAgenda={onAgenda && closeThen(onAgenda)}
         />
       </PopoverContent>
     </Popover>
@@ -170,6 +193,7 @@ interface MeetingsCalendarProps extends MeetingActions {
   meetings: Meeting[]
   /** Called with the start of the empty hour slot the user clicked. */
   onCreateAt: (start: Date) => void
+  onAgenda?: (meeting: Meeting) => void
 }
 
 export function MeetingsCalendar({
@@ -177,6 +201,7 @@ export function MeetingsCalendar({
   onEdit,
   onDelete,
   onCreateAt,
+  onAgenda,
 }: MeetingsCalendarProps) {
   const [view, setView] = useState<CalendarView>(initialView)
   const [anchor, setAnchor] = useState(() => new Date())
@@ -320,6 +345,7 @@ export function MeetingsCalendar({
                       segment={segment}
                       onEdit={onEdit}
                       onDelete={onDelete}
+                      onAgenda={onAgenda}
                     />
                   ))}
 
