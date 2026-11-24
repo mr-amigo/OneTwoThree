@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Agenda parser: Lambda outside the VPC, public Function URL, LLM (OpenAI API or Claude on Bedrock), $5 budget alarm."
+Parameters:
+  ProjectName:
+    Type: String
+    Default: meetings
+  ImageUri:
+    Type: String
+  Architecture:
+    Type: String
+    Default: arm64
+    AllowedValues: [arm64, x86_64]
+  ParserProvider:
+    Type: String
+    Default: openai
+    AllowedValues: [openai, bedrock, bedrock-converse]
+  ParserModel:
+    Type: String
+    Default: gpt-5.4-mini
+  OpenAiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: OpenAI API key (only for ParserProvider=openai). NoEcho hides it in CloudFormation, not in the Lambda console.
+  CorsOrigins:
+    Type: CommaDelimitedList
+    Default: http://localhost:3000,http://localhost:5173
+  CognitoUserPoolId:
+    Type: String
+  CognitoClientId:
+    Type: String
+  CognitoJwks:
+    Type: String
+    Default: ""
+  BudgetAlertEmail:
+    Type: String
+    Default: ""
+Conditions:
+  HasBudgetEmail: !Not [!Equals [!Ref BudgetAlertEmail, ""]]
+Resources:
+  ParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ProjectName}-agenda-parser
+      RetentionInDays: 14
+      Tags:
+        - { Key: PROJECT_NAME, Value: !Ref ProjectName }
+  ParserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # Ready for PARSER_PROVIDER=bedrock / bedrock-converse without a template change.
+        - PolicyName: BedrockInference
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Anthropic Messages API on Bedrock. Scoped to the parser's region instead of any region.
+              - Sid: MantleInference
+                Effect: Allow
+                Action: bedrock-mantle:CreateInference
+                Resource: "*"
+                Condition:
+                  StringEquals: { "aws:RequestedRegion": !Ref AWS::Region }
+              # Converse API: Anthropic models only, called directly or through this account's inference profiles.
+              # A cross-region or global profile routes to the model in other regions, hence "*" for the region.
+              - Sid: ConverseInference
+                Effect: Allow
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                Resource:
+                  - arn:aws:bedrock:*::foundation-model/anthropic.*
+                  - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*anthropic.*
+      Tags:
+        - { Key: PROJECT_NAME, Value: !Ref ProjectName }
+  ParserFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ParserLogGroup
+    Properties:
+      FunctionName: !Sub ${ProjectName}-agenda-parser
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      ImageConfig:
+        Command: [app.ai.agenda_lambda.handler]
+      Architectures: [!Ref Architecture]
+      Role: !GetAtt ParserRole.Arn
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          PARSER_PROVIDER: !Ref ParserProvider
+          PARSER_MODEL: !Ref ParserModel
+          OPENAI_API_KEY: !Ref OpenAiApiKey
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_JWKS: !Ref CognitoJwks
+      Tags:
+        - { Key: PROJECT_NAME, Value: !Ref ProjectName }
+  ParserFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: NONE
+      TargetFunctionArn: !GetAtt ParserFunction.Arn
+      Cors:
+        AllowOrigins: !Ref CorsOrigins
+        AllowMethods: [POST]
+        AllowHeaders: [authorization, content-type]
+        MaxAge: 86400
+  ParserFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ParserFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+  ParserFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ParserFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+  MonthlyAiBudget:
+    Type: AWS::Budgets::Budget
+    Condition: HasBudgetEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub ${ProjectName}-agenda-parser-5usd
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: { Amount: 5, Unit: USD }
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - { SubscriptionType: EMAIL, Address: !Ref BudgetAlertEmail }
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - { SubscriptionType: EMAIL, Address: !Ref BudgetAlertEmail }
+Outputs:
+  ParserUrl:
+    Value: !GetAtt ParserFunctionUrl.FunctionUrl
+  ParserFunctionName:
+    Value: !Ref ParserFunction

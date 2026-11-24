@@ -12,6 +12,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.ai.schemas import ActionItem, AgendaItem, ParsedAgenda
+
 
 def _blank_to_none(value: object) -> object:
     if isinstance(value, str) and not value.strip():
@@ -58,6 +60,18 @@ class UserUpdate(BaseModel):
         return _blank_to_none(value)
 
 
+class AiSuggestion(BaseModel):
+    agenda: ParsedAgenda
+    model: str
+    prompt_version: str
+
+
+class MeetingAgendaUpdate(BaseModel):
+    agenda_items: list[AgendaItem] = []
+    action_items: list[ActionItem] = []
+    ai_suggestion: AiSuggestion | None = None
+
+
 class MeetingCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -68,6 +82,9 @@ class MeetingCreate(BaseModel):
     starts_at: AwareDatetime
     ends_at: AwareDatetime
     participant_ids: list[UUID] = []
+    agenda_items: list[AgendaItem] = []
+    action_items: list[ActionItem] = []
+    ai_suggestion: AiSuggestion | None = None
 
     @field_validator("description", "call_link", "place", mode="before")
     @classmethod
@@ -99,4 +116,7 @@ class MeetingRead(BaseModel):
     ends_at: datetime
     owner_id: UUID | None
     participants: list[ParticipantRead]
+    agenda_items: list[AgendaItem] = []
+    action_items: list[ActionItem] = []
+    ai_suggestion: AiSuggestion | None = None
     created_at: datetime

@@ -13,7 +13,9 @@ dependencies = [
     "pydantic-settings>=2.3",
     "mangum>=0.19",
     "pyjwt[crypto]>=2.9",
+    "anthropic[bedrock]>=0.40.0",
     "tzdata>=2024.1",
+    "openai>=3.58.0",
 ]
 
 [dependency-groups]

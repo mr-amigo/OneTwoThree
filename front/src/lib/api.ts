@@ -1,5 +1,6 @@
 import { clearSession, getApiToken } from "@/lib/auth"
 import type {
+  AgendaSave,
   Meeting,
   MeetingCreate,
   Participant,
@@ -74,6 +75,8 @@ export const api = {
     request<Meeting>("/meetings", { method: "POST", body: JSON.stringify(data) }),
   updateMeeting: ({ id, data }: { id: string; data: MeetingCreate }) =>
     request<Meeting>(`/meetings/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  saveAgenda: ({ id, data }: { id: string; data: AgendaSave }) =>
+    request<Meeting>(`/meetings/${id}/agenda`, { method: "PUT", body: JSON.stringify(data) }),
   deleteMeeting: (id: string) => request<void>(`/meetings/${id}`, { method: "DELETE" }),
 
   listParticipants: (q = "") =>

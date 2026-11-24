@@ -181,3 +181,50 @@ def test_participant_search(client: TestClient):
     create_participant(client, "Oleh", "oleh@example.com")
     names = [p["name"] for p in client.get("/api/participants", params={"q": "ole"}).json()]
     assert names == ["Oleh"]
+
+
+def _agenda_body(minutes: int = 15) -> dict:
+    suggested = {"items": [{"topic": "Pricing", "owner": "Olena", "minutes": 15}], "language": "en"}
+    return {
+        "agenda_items": [{"topic": "Pricing", "owner": "Olena", "minutes": minutes}],
+        "action_items": [{"task": "Compare competitors", "owner": "Taras", "due": "2026-10-30"}],
+        "ai_suggestion": {
+            "agenda": suggested,
+            "model": "anthropic.claude-opus-5-5",
+            "prompt_version": "agenda-v1",
+        },
+    }
+
+
+def test_meeting_starts_without_an_agenda(client: TestClient):
+    meeting = client.post("/api/meetings", json=meeting_payload()).json()
+    assert meeting["agenda_items"] == [] and meeting["ai_suggestion"] is None
+
+
+def test_agenda_is_saved_with_the_suggestion_it_started_from(client: TestClient):
+    meeting = client.post("/api/meetings", json=meeting_payload()).json()
+    resp = client.put(f"/api/meetings/{meeting['id']}/agenda", json=_agenda_body(minutes=20))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["agenda_items"][0]["minutes"] == 20  # what the user saved
+    assert body["ai_suggestion"]["agenda"]["items"][0]["minutes"] == 15  # what the model suggested
+    assert body["action_items"][0]["due"] == "2026-10-30"
+    assert client.get(f"/api/meetings/{meeting['id']}").json()["agenda_items"] == body["agenda_items"]
+
+
+def test_editing_a_meeting_keeps_its_agenda(client: TestClient):
+    meeting = client.post("/api/meetings", json=meeting_payload()).json()
+    client.put(f"/api/meetings/{meeting['id']}/agenda", json=_agenda_body())
+    edited = client.put(f"/api/meetings/{meeting['id']}", json=meeting_payload(title="Renamed")).json()
+    assert edited["title"] == "Renamed" and len(edited["agenda_items"]) == 1
+
+
+def test_invalid_agenda_is_rejected(client: TestClient):
+    meeting = client.post("/api/meetings", json=meeting_payload()).json()
+    url = f"/api/meetings/{meeting['id']}/agenda"
+    assert client.put(url, json={"agenda_items": [{"topic": ""}]}).status_code == 422
+    assert client.put(url, json={"agenda_items": [{"topic": "x", "minutes": 481}]}).status_code == 422
+
+
+def test_agenda_of_unknown_meeting_returns_404(client: TestClient):
+    assert client.put(f"/api/meetings/{uuid.uuid4()}/agenda", json={}).status_code == 404

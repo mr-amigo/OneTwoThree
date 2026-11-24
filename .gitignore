@@ -14,3 +14,9 @@ infra/*.params.env
 # Installers
 AWSCLIV2.pkg
 AWSCLIV2.pkg
+
+# Lab 6: AWS support correspondence and personal data, submitted to the lecturer separately
+lab6-evidence/
+lab6-evidence.zip
+lab6-*.patch
+lab6-submission/
