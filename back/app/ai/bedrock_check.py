@@ -128,9 +128,10 @@ def main() -> int:
         print()
 
     if ready:
-        print("READY. Switch the parser with one of:")
+        print("READY. Switch the parser in infra/terraform.tfvars (pull request, merge) with one of:")
         for line in ready:
-            print(f"   make aws-ai-deploy {line}")
+            provider, model = (part.split("=", 1)[1] for part in line.split())
+            print(f'   parser_provider = "{provider}"   parser_model = "{model}"')
         return 0
     print("BLOCKED: no Claude model answers on this account. Keep PARSER_PROVIDER=openai (see ADR 0006).")
     return 1

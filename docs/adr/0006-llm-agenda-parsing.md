@@ -77,7 +77,8 @@ submitted to the lecturer separately, because they contain personal data. The le
   - `bedrock-converse`: the provider-neutral Converse API (`bedrock-runtime`) for inference profiles such as
     `us.anthropic.claude-haiku-5-5`, or Amazon Nova.
   The IAM role already allows both Bedrock APIs, so switching back is a deploy with other parameters:
-  `make aws-ai-deploy PARSER_PROVIDER=bedrock PARSER_MODEL=anthropic.claude-opus-5-5`.
+  `make aws-ai-deploy PARSER_PROVIDER=bedrock PARSER_MODEL=anthropic.claude-opus-5-5`. (Since Lab 7 the parser is
+  Terraform: the same switch is `parser_provider`/`parser_model` in `infra/terraform.tfvars`, see ADR 0007.)
   `make bedrock-check` tells when that will work: it checks model access, the quotas applied to the account next to
   AWS's defaults, and one real call through each Bedrock API, then prints READY or BLOCKED.
 - Model: `gpt-5.4-mini` ($0.75 / $4.50 per 1M tokens, `reasoning.effort=low`). `gpt-5.4-nano` ($0.20 / $1.25) was

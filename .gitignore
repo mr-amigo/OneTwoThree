@@ -20,3 +20,15 @@ lab6-evidence/
 lab6-evidence.zip
 lab6-*.patch
 lab6-submission/
+
+# Terraform (Lab 7): provider cache, local state and plans never go to Git; .terraform.lock.hcl does.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+*_override.tf
+infra/.build/
+infra/plan.txt
+lab7-evidence/

@@ -6,10 +6,10 @@ Backend, frontend, infrastructure and CI live in one repository. One commit can 
 ## Deployment on AWS
 - Frontend: static files in a private S3 bucket, served through CloudFront over HTTPS.
 - Backend: FastAPI in a Lambda container image with a function URL, plus Aurora Serverless PostgreSQL. It costs almost nothing when idle.
-- Login: Amazon Cognito managed login (Essentials tier, free up to 10,000 monthly users), one sign-in page for email + password and Google. The user pool is code in `infra/cognito.yaml`.
-- Everything is deployed with `make aws-deploy` and described in `infra/` (CloudFormation). The backend image is tagged with the commit SHA.
+- Login: Amazon Cognito managed login (Essentials tier, free up to 10,000 monthly users), one sign-in page for email + password and Google. The user pool is code in `infra/auth.tf` (Terraform since Lab 7).
+- Everything is described in `infra/`: Terraform for Cognito, the weekly report and the agenda parser (applied by GitHub Actions after a merge to `main`, ADR 0007), CloudFormation for the network, API, database, ECR and site (`make aws-deploy`). The backend image is tagged with the commit SHA.
 - Default AWS domains are used. The lecturer confirmed a custom domain is not required.
-- AWS access keys are only in `.env`, which is git-ignored.
+- AWS access keys are only in `.env`, which is git-ignored. The pipeline has none: it assumes IAM roles through GitHub's OIDC token.
 
 ## Local run
 `make start` runs Postgres, the backend and the frontend with Docker Compose. Migrations (Alembic) run when the backend container starts.
