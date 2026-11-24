@@ -75,6 +75,7 @@ jobs:
           for name in google_client_secret openai_api_key report_sender_email report_recipient_email budget_alert_email; do
             value=$(aws ssm get-parameter --name "/meetings/terraform/$name" --with-decryption --query Parameter.Value --output text)
             echo "::add-mask::$value"
+            printf '%s\n' "$value" >> "$RUNNER_TEMP/masks"
           done
 
       - name: Format
@@ -90,9 +91,12 @@ jobs:
         id: plan
         run: |
           set -o pipefail
-          terraform plan -no-color -concise -lock-timeout=5m -detailed-exitcode 2>&1 | tee plan.txt || code=$?
+          terraform plan -no-color -lock-timeout=5m -detailed-exitcode 2>&1 | tee plan.txt || code=$?
           code=${code:-0}
           echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          # The plan is posted on the pull request, where log masking does not apply: an imported
+          # resource's ID (the SES identity is an email address) would show. Redact the SSM values.
+          python3 -c 'import os,sys; p="plan.txt"; t=open(p).read(); [t:=t.replace(v,"***") for v in open(os.environ["RUNNER_TEMP"]+"/masks").read().split("\n") if len(v)>3]; open(p,"w").write(t)'
           [ "$code" -ne 1 ]
 
       - name: Summary
@@ -161,13 +165,14 @@ jobs:
           for name in google_client_secret openai_api_key report_sender_email report_recipient_email budget_alert_email; do
             value=$(aws ssm get-parameter --name "/meetings/terraform/$name" --with-decryption --query Parameter.Value --output text)
             echo "::add-mask::$value"
+            printf '%s\n' "$value" >> "$RUNNER_TEMP/masks"
           done
 
       - name: Init
         run: terraform init
 
       - name: Plan
-        run: terraform plan -no-color -concise -lock-timeout=5m -out=tfplan
+        run: terraform plan -no-color -lock-timeout=5m -out=tfplan
 
       # Applies exactly the saved plan: nothing is recalculated between the plan above and the apply.
       - name: Apply
