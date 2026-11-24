@@ -53,6 +53,19 @@ variable "github_repository" {
   default     = "mr-amigo/OneTwoThree"
 }
 
+# GitHub's OIDC subject names the owner and the repository with their immutable IDs as well
+# (repo:<owner>@<owner id>/<repo>@<repo id>:...), so a repository deleted and re-created under the same
+# name by someone else does not get these roles. IDs: https://api.github.com/repos/<owner>/<repo>
+variable "github_owner_id" {
+  type    = number
+  default = 246989247
+}
+
+variable "github_repository_id" {
+  type    = number
+  default = 1394976249
+}
+
 data "aws_caller_identity" "current" {}
 
 data "aws_cloudformation_stack" "backend" {
@@ -63,7 +76,10 @@ locals {
   account = data.aws_caller_identity.current.account_id
   region  = var.region
   p       = var.project_name
-  repo    = var.github_repository
+  repo = format("%s@%d/%s@%d",
+    split("/", var.github_repository)[0], var.github_owner_id,
+    split("/", var.github_repository)[1], var.github_repository_id,
+  )
 }
 
 # --- Remote state ---
@@ -136,7 +152,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  # Who may assume which role. The sub claim names the repository and the event or branch.
+  # Who may assume which role. The sub claim names the repository (with IDs) and the event or branch.
   plan_subjects = [
     "repo:${local.repo}:pull_request",
     "repo:${local.repo}:ref:refs/heads/main",
@@ -223,7 +239,7 @@ data "aws_iam_policy_document" "trust_apply" {
 
 resource "aws_iam_role" "plan" {
   name                 = "github-terraform-${local.p}-plan"
-  description          = "terraform plan from GitHub Actions (${local.repo}): pull requests and manual plans"
+  description          = "terraform plan from GitHub Actions (${var.github_repository}): pull requests and manual plans"
   assume_role_policy   = data.aws_iam_policy_document.trust_plan.json
   max_session_duration = 3600
 }
@@ -249,7 +265,7 @@ resource "aws_iam_role_policy" "plan" {
 
 resource "aws_iam_role" "apply" {
   name                 = "github-terraform-${local.p}-apply"
-  description          = "terraform apply from GitHub Actions (${local.repo}), main branch only"
+  description          = "terraform apply from GitHub Actions (${var.github_repository}), main branch only"
   assume_role_policy   = data.aws_iam_policy_document.trust_apply.json
   max_session_duration = 3600
 }
