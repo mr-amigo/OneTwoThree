@@ -54,10 +54,14 @@ front/            # Vite + React + TypeScript + Tailwind + shadcn/ui
     lib/api.ts    # typed fetch wrapper (VITE_API_URL = backend origin, empty = same origin)
     lib/parser.ts # calls the parser's function URL (VITE_PARSER_URL), with cancel and error messages
   nginx.conf      # serves the SPA, proxies /api to backend
-infra/            # CloudFormation: cognito, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront),
-                  # reports, ai (agenda parser Lambda + function URL + $5 budget)
-docs/adr/         # architecture decision records (0006: LLM agenda parsing)
+infra/            # Terraform (Lab 7): auth.tf (Cognito), reports.tf (weekly report), ai.tf (agenda parser),
+                  # data.tf, variables.tf, outputs.tf, terraform.tfvars, lambda/report_mailer/index.py,
+                  # bootstrap/ (state bucket + GitHub OIDC roles)
+                  # CloudFormation: backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront)
+docs/adr/         # architecture decision records (0006: LLM agenda parsing, 0007: Terraform)
 docs/lab6-report.md, docs/lab6-runs/ # Lab 6 test table, answers, raw runs, CloudWatch lines, screen recording
+docs/lab7-report.md, docs/lab7-runs/ # Lab 7 migration log, plans, drift check, answers
+.github/workflows/ # code-style.yml (lint), infra.yml (Terraform plan on PRs, apply on main)
 ```
 
 ## API
@@ -111,14 +115,15 @@ A password user and a Google user with the same email are two different users wi
 
    where `<COGNITO_DOMAIN>` is `meetings-<AWS account id>.auth.us-east-1.amazoncognito.com`
    (`make aws-check` prints the account id).
-3. Put the client ID and secret in `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The secret
-   goes to CloudFormation as a `NoEcho` parameter and never appears in the repository or the frontend build.
+3. Put the client ID and secret in `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The client ID
+   goes to `infra/terraform.tfvars`; `make infra-secrets` puts the secret into SSM Parameter Store, where
+   Terraform reads it. It never appears in the repository, the CI logs or the frontend build.
 
-**2. Deploy the user pool:**
+**2. The user pool** is `infra/auth.tf` (Essentials tier, Google, app client, managed login), applied by the
+pipeline (see [Infrastructure as code](#infrastructure-as-code-lab-7-terraform)). Then:
 
 ```bash
-make aws-cognito-deploy   # user pool (Essentials tier) + Google + app client + managed login; prints the lines for .env
-make aws-cognito-env      # print them again
+make aws-cognito-env      # prints the COGNITO_* lines for .env from the Terraform outputs
 ```
 
 Paste the printed `COGNITO_*` lines into `.env` and run `make up`; the local frontend and backend
@@ -172,6 +177,7 @@ CI (`.github/workflows/code-style.yml`) runs on every push to `main` and on pull
 | --- | --- | --- | --- |
 | `back/` | Ruff (lint + format) | `uv run ruff check . && uv run ruff format --check .` | `uv run ruff check --fix . && uv run ruff format .` |
 | `front/` | ESLint, Prettier, `tsc` | `npm run lint && npm run format:check && npm run typecheck` | `npm run format` |
+| `infra/` | `terraform fmt`, `validate` (in `infra.yml`), cfn-lint | `make infra-validate` | `make infra-fmt` |
 
 Config lives in `back/pyproject.toml` (`[tool.ruff]`), `front/eslint.config.js` and `front/.prettierrc.json`.
 
@@ -197,25 +203,80 @@ make llm-hello                       # one call to the configured model: answer,
 make parse TEXT="Mon 10:00 pricing sync, 45 min. 1) Pro plans, Olena, 15 min"
 make bedrock-check                   # can this account use Claude on Bedrock? access, quotas, one call per API
 make aws-ai-logs                     # one JSON line per parse: provider, model, prompt version, tokens, latency, cost
-make aws-ai-deploy PARSER_PROVIDER=bedrock PARSER_MODEL=anthropic.claude-opus-5-5   # switch once bedrock-check says READY
+# switch once bedrock-check says READY: parser_provider = "bedrock", parser_model = "anthropic.claude-opus-5-5"
+# in infra/terraform.tfvars, pull request, merge (the pipeline applies it)
 ```
 
 Results: [docs/lab6-report.md](docs/lab6-report.md) has the five-input test table for gpt-5.4-mini and gpt-5.4-nano,
 CloudWatch log lines, cost per parse (≈ $0.00086) and the answers. [docs/lab6-runs/](docs/lab6-runs/) has the raw
 responses, the CloudWatch export and a screen recording of the deployed app (`paste-an-agenda.mp4`).
 
+## Infrastructure as code (Lab 7: Terraform)
+
+The parts added in Labs 4–6 are Terraform now; the older stacks stay in CloudFormation.
+
+| What | Code | Who applies it |
+| --- | --- | --- |
+| Cognito (Lab 4), weekly report (Lab 5), agenda parser (Lab 6): 39 resources | `infra/auth.tf`, `infra/reports.tf`, `infra/ai.tf` | GitHub Actions, after a merge to `main` |
+| Their state | S3 bucket `meetings-tfstate-<account>` (versioned, encrypted) with an S3 lock file | – |
+| Network + API + Aurora, ECR, site | `infra/backend.yaml`, `backend-ecr.yaml`, `frontend.yaml` (CloudFormation; Terraform reads their outputs) | `make aws-*` |
+| State bucket, GitHub OIDC provider, plan and apply roles | `infra/bootstrap/` (local state) | once, from an administrator's laptop |
+
+**The road of a change.** Branch → pull request → the workflow [`infra.yml`](.github/workflows/infra.yml) runs
+`fmt`, `validate` and `plan` with a **read-only** role and posts the plan on the pull request → review the plan →
+merge → the workflow plans again and applies exactly that plan with the **apply** role (main branch only). Both roles
+are assumed through GitHub's OIDC token, so there are no AWS keys in GitHub. The Makefile has no `terraform apply`.
+
+```mermaid
+flowchart LR
+    Dev[Developer or Claude Code] -->|pull request| GH[GitHub]
+    GH -->|"pull_request: plan<br/>(read-only role, OIDC)"| P[plan posted on the PR]
+    GH -->|"merge to main: plan + apply<br/>(apply role, OIDC)"| A[terraform apply]
+    A <-->|state + lock file| S3[(S3 tfstate)]
+    A --> AWS[Cognito, Lambdas, SQS,<br/>S3, Scheduler, SES, budget]
+    A -.->|reads outputs| CFN[CloudFormation stacks:<br/>backend, ECR, frontend]
+    A -.->|reads secrets| SSM[SSM Parameter Store]
+```
+
+```bash
+make infra-init       # terraform init with the S3 backend (credentials from .env)
+make infra-plan       # what the pipeline would change; nothing is applied
+make infra-validate   # fmt -check + validate
+make infra-output     # pool and client IDs, parser URL, queue URLs, ... (the Makefile reads these)
+make infra-secrets    # .env -> SSM SecureString parameters /meetings/terraform/* (names printed, values not)
+```
+
+**Secrets.** The Google client secret, the OpenAI key and the email addresses are not in the repository, the tfvars
+or the workflow: Terraform reads them from SSM Parameter Store (`data.tf`). Like every value Terraform touches, they end
+up in the state, which is why the state bucket is private, encrypted and readable only by the two pipeline roles and
+administrators. Plans show `(sensitive value)`.
+
+**Lambda images.** Terraform creates the functions; new image tags are deployed by `make aws-lambda-images` (or
+`aws-ai-deploy`, `aws-reports-deploy`), so `image_uri` is in the functions' `ignore_changes`.
+
+**Switching the parser to Bedrock** is now a one-line pull request: `parser_provider`/`parser_model` in
+`infra/terraform.tfvars`, after `make bedrock-check` says READY.
+
+**From scratch (a new account):** `cd infra/bootstrap && terraform init && terraform apply` → `make infra-secrets` →
+deploy the CloudFormation stacks that Terraform reads (`make aws-backend-deploy`, `make aws-frontend-stack`) → push
+`infra/` to `main` (the pipeline creates the rest) → `make aws-lambda-images aws-frontend-publish`.
+
+How the existing resources were moved without losing a user or a report (Retain, import blocks, a plan with 0 to
+destroy), why GitHub Actions and not HCP Terraform, and the answers to the lab's questions:
+[ADR 0007](docs/adr/0007-terraform.md) and [docs/lab7-report.md](docs/lab7-report.md).
+
 ## Deploy to AWS (backend on Lambda + Aurora Serverless, frontend on CloudFront)
 
-Everything is deployed to **us-east-1**. CloudFront accepts custom-domain certificates only from that region. Infrastructure is CloudFormation in `infra/`:
+Everything is deployed to **us-east-1**. CloudFront accepts custom-domain certificates only from that region. Infrastructure is in `infra/`, Terraform (`*.tf`, see [above](#infrastructure-as-code-lab-7-terraform)) and CloudFormation (`*.yaml`):
 
-- `infra/cognito.yaml`: Cognito user pool (Essentials tier, email + password, self sign-up with email code), Google identity provider, public app client (code flow, no secret), and a managed login (version 2) domain with its branding.
+- `infra/auth.tf`: Cognito user pool (Essentials tier, email + password, self sign-up with email code), Google identity provider, public app client (code flow, no secret), and a managed login (version 2) domain with its branding.
 - `infra/backend-ecr.yaml`: ECR repository for the backend's Lambda container image (`back/Dockerfile.lambda`).
 - `infra/backend.yaml`: VPC with private subnets, Aurora Serverless v2 PostgreSQL (scales to 0 ACU when idle), and a Lambda function with a public **function URL**, which is the backend URL.
 - `infra/frontend.yaml`: private S3 bucket and CloudFront distribution for the SPA on the **flat-rate Free plan** ($0/month, with the WAF web ACL the plan requires), with an optional custom domain.
-- `infra/ai.yml`: agenda parser Lambda (same image, handler `app.ai.agenda_lambda.handler`) **outside the VPC** with a public function URL (POST only, CORS for the site's origins). It verifies the Cognito ID token, rejects text over 10,000 characters, calls the LLM chosen by `PARSER_PROVIDER` (default `openai`: OpenAI Responses API with `OPENAI_API_KEY`; `bedrock`: Claude through the Messages API, `bedrock-mantle:CreateInference`; `bedrock-converse`: any Bedrock model through Converse, `bedrock:InvokeModel`) and logs one JSON line per parse, failed ones included. Also a $5/month AWS Budgets alarm.
-- `infra/reports.yaml`: event-driven weekly report pipeline — EventBridge Scheduler (`cron(0 7 ? * MON *)` in `Europe/Kyiv`), SQS queue (`report-requests`) with a DLQ, Builder Lambda in the VPC writing `reports/<week>.csv` to S3 through a free S3 Gateway VPC Endpoint, and Mailer Lambda outside the VPC sending the CSV attachment via Amazon SES on `s3:ObjectCreated:*`.
+- `infra/ai.tf`: agenda parser Lambda (same image, handler `app.ai.agenda_lambda.handler`) **outside the VPC** with a public function URL (POST only, CORS for the site's origins). It verifies the Cognito ID token, rejects text over 10,000 characters, calls the LLM chosen by `PARSER_PROVIDER` (default `openai`: OpenAI Responses API with `OPENAI_API_KEY`; `bedrock`: Claude through the Messages API, `bedrock-mantle:CreateInference`; `bedrock-converse`: any Bedrock model through Converse, `bedrock:InvokeModel`) and logs one JSON line per parse, failed ones included. Also a $5/month AWS Budgets alarm.
+- `infra/reports.tf`: event-driven weekly report pipeline — EventBridge Scheduler (`cron(0 7 ? * MON *)` in `Europe/Kyiv`), SQS queue (`report-requests`) with a DLQ, Builder Lambda in the VPC writing `reports/<week>.csv` to S3 through a free S3 Gateway VPC Endpoint, and Mailer Lambda outside the VPC sending the CSV attachment via Amazon SES on `s3:ObjectCreated:*`.
 
-Every resource carries the tag `PROJECT_NAME=<project>`. It is set in the templates and as a stack tag, and `cert.sh` puts it on the ACM certificate. Some resource types can't be tagged in AWS at all: function URLs, Lambda permissions, the bucket policy, the CloudFront origin access control, Route 53 records and the pricing plan subscription.
+Every resource carries the tag `PROJECT_NAME=<project>`. Terraform sets it with the provider's `default_tags`, the templates and a stack tag set it in CloudFormation, and `cert.sh` puts it on the ACM certificate. Some resource types can't be tagged in AWS at all: function URLs, Lambda permissions, the bucket policy, the CloudFront origin access control, Route 53 records and the pricing plan subscription.
 
 Containers (C4 level 2). The two Lab 6 paths: **parse** (browser → parser → LLM, returns JSON, writes nothing) and **save** (browser → API → Aurora, the normal validated endpoint).
 
@@ -246,15 +307,15 @@ flowchart LR
 3. Deploy. The first run takes about 15 minutes, mostly waiting for Aurora and CloudFront:
 
    ```bash
-   make aws-deploy   # = aws-cognito-deploy, aws-backend-deploy, aws-ai-deploy, then aws-frontend-deploy
+   make aws-deploy   # = aws-backend-deploy, aws-lambda-images, then aws-frontend-deploy
    ```
 
    The steps run in this order:
 
-   1. **Cognito** (`make aws-cognito-deploy`): user pool, Google provider, app client and managed login domain. Needs `GOOGLE_CLIENT_ID/SECRET` in `.env`. Redirect URLs cover localhost and the site's origins. It prints the `.env` lines for local use.
+   0. **Terraform resources** (Cognito, weekly report, parser): applied by the pipeline, see [Infrastructure as code](#infrastructure-as-code-lab-7-terraform). Redirect URLs and the parser's CORS cover localhost and the site's origins (read from the frontend stack). `make aws-cognito-env` prints the `.env` lines for local use.
    2. **Backend** (`make aws-backend-deploy`): ECR stack → build and push the Lambda image → backend stack → `aws-backend-migrate` invokes the function with `{"action": "migrate"}` to run Alembic and seeding. It prints the function URL (`https://<id>.lambda-url.us-east-1.on.aws/`).
-   3. **Agenda parser** (`make aws-ai-deploy`): pushes the image and deploys `infra/ai.yml` with `PARSER_PROVIDER`/`PARSER_MODEL` (default `openai`/`gpt-5.4-mini`, needs `OPENAI_API_KEY` in `.env`) and the $5 budget alarm to `BUDGET_ALERT_EMAIL` (or `REPORT_EMAIL`). For Claude on Bedrock: `make bedrock-check` (model access, quotas, one call per Bedrock API → READY/BLOCKED), then `make aws-ai-deploy PARSER_PROVIDER=bedrock PARSER_MODEL=anthropic.claude-opus-5-5`. The same overrides work for `make llm-hello` and `make parse`. `make aws-ai-logs` shows the per-parse log lines; `make llm-hello` and `make parse TEXT="..."` try the model from a laptop.
-   4. **Frontend** (`make aws-frontend-deploy`): frontend stack → `npm run build` with `VITE_API_URL=<function URL>` and the `VITE_COGNITO_*` IDs → upload to S3 and invalidate CloudFront → allow the site's origin in the backend's `CORS_ORIGINS` and as a Cognito redirect URL. It prints the site URL.
+   3. **Lambda images** (`make aws-lambda-images`): pushes the image and points the report builder and the agenda parser at it. The parser's provider and model are `parser_provider`/`parser_model` in `infra/terraform.tfvars` (default `openai`/`gpt-5.4-mini`; the key comes from SSM). For Claude on Bedrock: `make bedrock-check` (model access, quotas, one call per Bedrock API → READY/BLOCKED), then change the two values in a pull request. The same overrides work for `make llm-hello` and `make parse`. `make aws-ai-logs` shows the per-parse log lines; `make llm-hello` and `make parse TEXT="..."` try the model from a laptop.
+   4. **Frontend** (`make aws-frontend-deploy`): frontend stack → `npm run build` with `VITE_API_URL=<function URL>` and the `VITE_COGNITO_*` IDs → upload to S3 and invalidate CloudFront → allow the site's origin in the backend's `CORS_ORIGINS` (Cognito and the parser pick it up at the next Terraform run). It prints the site URL.
 
 Other targets: `make aws-backend-outputs`, `aws-backend-status`, `aws-backend-logs`, `aws-backend-health`, `aws-backend-migrate`, `aws-frontend-outputs`, `aws-frontend-publish` (rebuild and upload the frontend only), `aws-destroy`. Use `ARCH=amd64` to build an x86 Lambda instead of Graviton (`arm64`, the default). Use `CLOUDFRONT_PLAN=PAY_AS_YOU_GO` if the account can't subscribe to the Free plan (accounts on the AWS Free Tier are not eligible, and each account gets at most 3 free plans).
 

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
     seed: bool = False
 
-    # Cognito user pool whose ID tokens the API accepts (`make aws-cognito-deploy` fills these in).
+    # Cognito user pool whose ID tokens the API accepts (`make aws-cognito-env` prints these).
     # Empty pool ID = auth disabled: every request acts as one local user (local development, tests).
     cognito_region: str = "us-east-1"
     cognito_user_pool_id: str = ""

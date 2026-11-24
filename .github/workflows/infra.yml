@@ -1,0 +1,182 @@
+# Infrastructure pipeline (Lab 7): Terraform in infra/, state in S3, AWS access through OIDC.
+#
+#   pull request -> plan with the read-only role; the plan is posted on the pull request
+#   merge to main -> plan + apply with the apply role (the only road to changing the infrastructure)
+#   manual run    -> plan only (drift check), or plan + apply on main
+#
+# No AWS keys: each job exchanges GitHub's OIDC token for a role from infra/bootstrap. The plan role
+# cannot change anything, because a pull request can edit this file. Secrets are read by Terraform
+# from SSM Parameter Store, so this workflow needs no repository secrets.
+
+name: Infra (Terraform)
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply the plan (main branch only). Off = plan only, e.g. a drift check."
+        type: boolean
+        default: false
+
+# One run at a time for this state; the S3 lock file protects it from laptops as well.
+concurrency:
+  group: terraform-meetings-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for AWS
+  pull-requests: write # the plan comment
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.17.2
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  PLAN_ROLE: arn:aws:iam::027824090051:role/github-terraform-meetings-plan
+  APPLY_ROLE: arn:aws:iam::027824090051:role/github-terraform-meetings-apply
+
+jobs:
+  plan:
+    name: Plan
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && !inputs.apply)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.PLAN_ROLE }}
+          role-session-name: terraform-plan-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # The repository is public, so are its Actions logs. Resource IDs appear in progress lines (the SES
+      # identity's ID is an email address), so every value from SSM is masked as *** in this job's log.
+      - name: Mask values from SSM
+        working-directory: .
+        run: |
+          for name in google_client_secret openai_api_key report_sender_email report_recipient_email budget_alert_email; do
+            value=$(aws ssm get-parameter --name "/meetings/terraform/$name" --with-decryption --query Parameter.Value --output text)
+            echo "::add-mask::$value"
+          done
+
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+
+      - name: Init
+        run: terraform init
+
+      - name: Validate
+        run: terraform validate -no-color
+
+      - name: Plan
+        id: plan
+        run: |
+          set -o pipefail
+          terraform plan -no-color -concise -lock-timeout=5m -detailed-exitcode | tee plan.txt || code=$?
+          code=${code:-0}
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          [ "$code" -ne 1 ]
+
+      - name: Summary
+        if: always() && steps.plan.outcome != 'skipped'
+        run: |
+          {
+            echo "### terraform plan"
+            echo
+            echo '```'
+            grep -E '^(Plan:|No changes\.|Error:|  # .* (will|must) be)' plan.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the plan on the pull request
+        if: github.event_name == 'pull_request' && always() && steps.plan.outcome != 'skipped'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('infra/plan.txt', 'utf8');
+            const lines = plan.split('\n');
+            const headline = lines.filter(l => /^(Plan:|No changes\.|Error:)/.test(l)).join('\n');
+            const start = lines.findIndex(l => l.startsWith('Terraform used') || l.startsWith('Terraform will perform'));
+            plan = (start >= 0 ? lines.slice(start) : lines).join('\n');
+            if (plan.length > 60000) plan = plan.slice(0, 60000) + '\n... (truncated; full plan in the job log)';
+            const marker = '<!-- terraform-plan -->';
+            const body = `${marker}\n#### terraform plan (${{ steps.plan.outputs.exitcode == '2' && 'changes' || 'no changes' }}) for \`${context.sha.slice(0, 7)}\`\n\n` +
+              '```\n' + headline + '\n```\n\n<details><summary>Full plan</summary>\n\n```\n' + plan + '\n```\n</details>\n\n' +
+              `Applied by the pipeline after the merge to main. [Run log](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number });
+            const old = comments.find(c => c.body.includes(marker));
+            if (old) await github.rest.issues.updateComment({ ...context.repo, comment_id: old.id, body });
+            else await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+
+  apply:
+    name: Plan and apply
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.apply))
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.APPLY_ROLE }}
+          role-session-name: terraform-apply-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # The repository is public, so are its Actions logs. Resource IDs appear in progress lines (the SES
+      # identity's ID is an email address), so every value from SSM is masked as *** in this job's log.
+      - name: Mask values from SSM
+        working-directory: .
+        run: |
+          for name in google_client_secret openai_api_key report_sender_email report_recipient_email budget_alert_email; do
+            value=$(aws ssm get-parameter --name "/meetings/terraform/$name" --with-decryption --query Parameter.Value --output text)
+            echo "::add-mask::$value"
+          done
+
+      - name: Init
+        run: terraform init
+
+      - name: Plan
+        run: terraform plan -no-color -concise -lock-timeout=5m -out=tfplan
+
+      # Applies exactly the saved plan: nothing is recalculated between the plan above and the apply.
+      - name: Apply
+        run: terraform apply -no-color -lock-timeout=5m tfplan
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### terraform apply on \`${GITHUB_SHA::7}\`"
+            echo
+            echo '```'
+            terraform show -no-color tfplan 2>/dev/null | grep -E '^(Plan:|  # .* (will|must) be)' || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
