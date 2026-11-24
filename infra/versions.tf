@@ -34,9 +34,11 @@ provider "aws" {
   region = var.region
 
   # Every resource that takes tags gets them without repeating them (the Lab 4 tagging rule).
+  # ManagedBy tells anyone in the console that a change there is drift: the next apply reverts it.
   default_tags {
     tags = {
       PROJECT_NAME = var.project_name
+      ManagedBy    = "terraform"
     }
   }
 }

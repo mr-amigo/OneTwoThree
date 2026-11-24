@@ -1,0 +1,71 @@
+$ make infra-plan    # terraform plan right after the migration (2026-11-24, after run #5 applied the imports)
+
+data.archive_file.report_mailer: Reading...
+data.archive_file.report_mailer: Read complete after 0s [id=d567836f70c9ba1a335bd87c2a8ed8d3cf608b8e]
+data.aws_ssm_parameter.secret["report_recipient_email"]: Reading...
+data.aws_cloudformation_stack.frontend: Reading...
+data.aws_ssm_parameter.secret["openai_api_key"]: Reading...
+data.aws_cloudformation_stack.backend: Reading...
+data.aws_region.current: Reading...
+data.aws_caller_identity.current: Reading...
+aws_iam_role.report_schedule: Refreshing state... [id=meetings-reports-ReportScheduleRole-Nrxn616gLanf]
+aws_iam_role.report_builder: Refreshing state... [id=meetings-reports-ReportBuilderRole-vfdmg7feUjdw]
+aws_iam_role.parser: Refreshing state... [id=meetings-ai-ParserRole-aZ8vbBGKtxUo]
+aws_iam_role.report_mailer: Refreshing state... [id=meetings-reports-ReportMailerRole-wvOIQvikGMUf]
+data.aws_region.current: Read complete after 0s [id=us-east-1]
+data.aws_ssm_parameter.secret["budget_alert_email"]: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=027824090051]
+data.aws_ssm_parameter.secret["report_sender_email"]: Reading...
+data.aws_ssm_parameter.secret["budget_alert_email"]: Read complete after 0s [id=/meetings/terraform/budget_alert_email]
+data.aws_ssm_parameter.secret["google_client_secret"]: Reading...
+data.aws_ssm_parameter.secret["openai_api_key"]: Read complete after 1s [id=/meetings/terraform/openai_api_key]
+data.aws_cloudformation_stack.backend_ecr: Reading...
+data.aws_ssm_parameter.secret["report_recipient_email"]: Read complete after 1s [id=/meetings/terraform/report_recipient_email]
+aws_cloudwatch_log_group.report_builder: Refreshing state... [id=/aws/lambda/meetings-report-builder]
+data.aws_cloudformation_stack.backend: Read complete after 1s [id=arn:aws:cloudformation:us-east-1:027824090051:stack/meetings-backend/97eb14a0-bbfa-11f1-b626-12ffc903fe7b]
+aws_cognito_user_pool.main: Refreshing state... [id=us-east-1_8hSfQWoBh]
+data.aws_ssm_parameter.secret["google_client_secret"]: Read complete after 1s [id=/meetings/terraform/google_client_secret]
+aws_cloudwatch_log_group.parser: Refreshing state... [id=/aws/lambda/meetings-agenda-parser]
+data.aws_ssm_parameter.secret["report_sender_email"]: Read complete after 1s [id=/meetings/terraform/report_sender_email]
+aws_sqs_queue.report_requests_dlq: Refreshing state... [id=https://sqs.us-east-1.amazonaws.com/027824090051/meetings-report-requests-dlq]
+data.aws_cloudformation_stack.backend_ecr: Read complete after 0s [id=arn:aws:cloudformation:us-east-1:027824090051:stack/meetings-backend-ecr/7549a440-bbf8-11f1-bc3c-12d6cffbb98d]
+aws_cloudwatch_log_group.report_mailer: Refreshing state... [id=/aws/lambda/meetings-report-mailer]
+aws_iam_role_policy_attachment.report_builder_vpc: Refreshing state... [id=meetings-reports-ReportBuilderRole-vfdmg7feUjdw/arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole]
+data.aws_cloudformation_stack.frontend: Read complete after 1s [id=arn:aws:cloudformation:us-east-1:027824090051:stack/meetings-frontend/6229a410-bcd8-11f1-96ab-0eb99b0e6cff]
+data.aws_secretsmanager_secret_version.db: Reading...
+aws_vpc_endpoint.s3: Refreshing state... [id=vpce-07bfcf6d10af87941]
+aws_sesv2_email_identity.sender: Refreshing state... [id=***]
+aws_budgets_budget.parser[0]: Refreshing state... [id=027824090051:meetings-agenda-parser-5usd]
+aws_s3_bucket.reports: Refreshing state... [id=meetings-reports-027824090051-us-east-1]
+aws_iam_role_policy.parser_bedrock: Refreshing state... [id=meetings-ai-ParserRole-aZ8vbBGKtxUo:BedrockInference]
+data.aws_secretsmanager_secret_version.db: Read complete after 1s [id=arn:aws:secretsmanager:us-east-1:027824090051:secret:DbSecret-smJ46xvv8BA8-jXUpVv|AWSCURRENT]
+aws_iam_role_policy_attachment.parser_logs: Refreshing state... [id=meetings-ai-ParserRole-aZ8vbBGKtxUo/arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+aws_iam_role_policy_attachment.report_mailer_logs: Refreshing state... [id=meetings-reports-ReportMailerRole-wvOIQvikGMUf/arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+aws_sqs_queue.report_requests: Refreshing state... [id=https://sqs.us-east-1.amazonaws.com/027824090051/meetings-report-requests]
+aws_lambda_function.report_mailer: Refreshing state... [id=meetings-report-mailer]
+aws_cognito_identity_provider.google: Refreshing state... [id=us-east-1_8hSfQWoBh:Google]
+aws_cognito_user_pool_domain.main: Refreshing state... [id=meetings-027824090051]
+aws_cognito_user_pool_client.web: Refreshing state... [id=441aupm53eff4u6vv8730vbtcm]
+aws_cognito_managed_login_branding.main: Refreshing state...
+aws_lambda_function.parser: Refreshing state... [id=meetings-agenda-parser]
+aws_lambda_permission.parser_url: Refreshing state... [id=meetings-ai-ParserFunctionUrlPermission-WK13umVNyb4T]
+aws_lambda_permission.parser_invoke: Refreshing state... [id=meetings-ai-ParserFunctionInvokePermission-4RhZcu7ZOb6O]
+aws_lambda_function_url.parser: Refreshing state... [id=meetings-agenda-parser]
+aws_iam_role_policy.report_builder: Refreshing state... [id=meetings-reports-ReportBuilderRole-vfdmg7feUjdw:ConsumeQueueAndWriteReports]
+aws_lambda_permission.report_mailer_s3: Refreshing state... [id=meetings-reports-ReportMailerS3Permission-i6cugLEvlFSY]
+aws_s3_bucket_public_access_block.reports: Refreshing state... [id=meetings-reports-027824090051-us-east-1]
+aws_iam_role_policy.report_mailer: Refreshing state... [id=meetings-reports-ReportMailerRole-wvOIQvikGMUf:ReadReportsAndSendEmail]
+aws_s3_bucket_ownership_controls.reports: Refreshing state... [id=meetings-reports-027824090051-us-east-1]
+aws_s3_bucket_server_side_encryption_configuration.reports: Refreshing state... [id=meetings-reports-027824090051-us-east-1]
+aws_s3_bucket_lifecycle_configuration.reports: Refreshing state... [id=meetings-reports-027824090051-us-east-1]
+aws_lambda_function.report_builder: Refreshing state... [id=meetings-report-builder]
+aws_s3_bucket_notification.reports: Refreshing state... [id=meetings-reports-027824090051-us-east-1]
+aws_iam_role_policy.report_schedule: Refreshing state... [id=meetings-reports-ReportScheduleRole-Nrxn616gLanf:SendScheduledReportRequest]
+aws_scheduler_schedule.weekly_report: Refreshing state... [id=default/meetings-weekly-report]
+aws_lambda_event_source_mapping.report_builder: Refreshing state... [id=55c88688-8954-4546-bceb-8fc5def76e17]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+Releasing state lock. This may take a few moments...

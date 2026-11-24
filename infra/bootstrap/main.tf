@@ -280,7 +280,7 @@ resource "aws_iam_role_policy" "apply" {
       {
         Sid      = "ReadOtherStacksOutputs"
         Effect   = "Allow"
-        Action   = "cloudformation:DescribeStacks"
+        Action   = ["cloudformation:DescribeStacks", "cloudformation:GetTemplate"] # the data source reads both
         Resource = "arn:aws:cloudformation:${local.region}:${local.account}:stack/${local.p}-*/*"
       },
       {
