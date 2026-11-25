@@ -234,7 +234,7 @@ feed.
   | 22:02–22:03 | 11,754 | 1,642 | **Таксі** |
 
 - The email said: *"[lab8] payment failures above 30%: Таксі — Таксі: 1077 of 1641 payments failed (66%);
-  Acquirer unavailable (drill): 1040; Невірний CVV: 10; Перевищено ліміт: 9"*. Screenshot in the submission.
+  Acquirer unavailable (drill): 1040; Невірний CVV: 10; Перевищено ліміт: 9"* (screenshot `lab8-runs/part3/sns-alert-email.png`).
 
 **Athena over the data that came through the stream** (`sql/part3`, screenshot `athena-console-stream-query.png`).
 - *Everything arrived* (`02-stream-vs-batch.csv`). The stream partition `dt=2026-10-01` holds **101,084 events,
