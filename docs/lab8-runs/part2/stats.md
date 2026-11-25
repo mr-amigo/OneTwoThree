@@ -15,3 +15,9 @@
 | 12-q4-failure-rate-parquet.sql | SUCCEEDED | 0.64 MB | 1.08 s | 1.28 s |
 | 13-q5-peak-hours-parquet.sql | SUCCEEDED | 8.10 MB | 1.14 s | 1.28 s |
 | 14-way-b-crawled-table.sql | SUCCEEDED | 1202.29 MB | 2.16 s | 2.31 s |
+| 14b-drop-json-table.sql | SUCCEEDED | 0.00 MB | 0.20 s | 0.53 s |
+| 15-fair-ctas-json.sql | SUCCEEDED | 1202.29 MB | 9.84 s | 10.00 s |
+| 16-fair-q3-turnover-json.sql | SUCCEEDED | 387.43 MB | 2.28 s | 2.42 s |
+| 17-fair-q4-failure-rate-json.sql | SUCCEEDED | 387.43 MB | 2.39 s | 2.61 s |
+| 18-fair-q5-peak-hours-json.sql | SUCCEEDED | 387.43 MB | 1.93 s | 2.08 s |
+| 19-q5-peak-hours-utc.sql | SUCCEEDED | 8.10 MB | 1.51 s | 1.69 s |

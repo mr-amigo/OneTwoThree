@@ -133,5 +133,59 @@
     "engine_ms": 2159,
     "total_ms": 2310,
     "query_id": "6fe156cf-eb8e-4579-bfd1-62b0d3c7be01"
+  },
+  "14b-drop-json-table": {
+    "file": "14b-drop-json-table.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 0,
+    "engine_ms": 199,
+    "total_ms": 531,
+    "query_id": "e545cebf-3e90-479d-a929-02d2e85570de"
+  },
+  "15-fair-ctas-json": {
+    "file": "15-fair-ctas-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 9844,
+    "total_ms": 10004,
+    "query_id": "a608ac33-7a38-4b45-8371-1acf839eb517"
+  },
+  "16-fair-q3-turnover-json": {
+    "file": "16-fair-q3-turnover-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 406245662,
+    "engine_ms": 2276,
+    "total_ms": 2423,
+    "query_id": "931a8399-27ed-48e0-8848-7b23aaec601e"
+  },
+  "17-fair-q4-failure-rate-json": {
+    "file": "17-fair-q4-failure-rate-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 406245662,
+    "engine_ms": 2390,
+    "total_ms": 2614,
+    "query_id": "3b7fff88-a3cf-4958-b85e-be68519442cc"
+  },
+  "18-fair-q5-peak-hours-json": {
+    "file": "18-fair-q5-peak-hours-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 406245662,
+    "engine_ms": 1930,
+    "total_ms": 2080,
+    "query_id": "04540f7b-a956-4859-a6f2-ec4b5fccb48a"
+  },
+  "19-q5-peak-hours-utc": {
+    "file": "19-q5-peak-hours-utc.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 8490834,
+    "engine_ms": 1511,
+    "total_ms": 1692,
+    "query_id": "1fbd6e28-35b3-4854-9abd-10b5cc5a53a9"
   }
 }

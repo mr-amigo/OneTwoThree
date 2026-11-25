@@ -12,7 +12,7 @@ Kinesis → Firehose → S3 → Athena pipeline with an SNS alert.
 | --- | --- |
 | Part 1 answers | [below](#part-1-ukloncs-data-architecture) |
 | Part 2 queries | `lab8/sql/part2/01…14-*.sql` |
-| Part 2 results | `lab8-runs/part2/*.csv`, `stats.md` (data scanned, run time), `crawler-schema.md`, screenshot `athena-console-recent-queries.png` |
+| Part 2 results | `lab8-runs/part2/*.csv`, `stats.md` (data scanned, run time of every query), `crawler-schema.md`, screenshot `athena-console-recent-queries.png`; the fair JSON-vs-Parquet runs are `15…18-fair-*` |
 | Part 3 diagram | `lab8-runs/part3/pipeline-diagram.png` (source `lab8/diagram/pipeline.html`) |
 | Part 3 producer | `lab8/producer/producer.py` (alert consumer: `lab8/alerter/handler.py`) |
 | Part 3 Athena over the stream | `lab8-runs/part3/athena-console-stream-query.png`, `lab8/sql/part3/*.sql`, `lab8-runs/part3/*.csv` |
@@ -117,6 +117,7 @@ Athena. Those are cheap when idle, and every later addition plugs into them.
   - Payments rise from 09:00 and peak in the evening: **21:00 = 7.87%**, 20:00 = 7.47%, 22:00 = 7.07%.
   - There is a second, smaller peak at 15:00 (6.53%).
   - The data is in UTC; the hours are shifted to Kyiv, and the shift accounts for daylight saving ending on 25 October.
+    In UTC (`19-q5-peak-hours-utc.csv`) the same peak is **18:00 UTC = 8.03%**, then 19:00 (7.32%) and 17:00 (7.29%).
 - **Query 6, late events:** 2.01% of events arrived more than 60 s after they happened, none more than 600 s.
 - **Query 7, Parquet:** `CREATE TABLE payments_parquet WITH (format='PARQUET', write_compression='SNAPPY',
   external_location='s3://…/curated/payments/', partitioned_by=ARRAY['dt']) AS SELECT … FROM payments`.
@@ -124,17 +125,26 @@ Athena. Those are cheap when idle, and every later addition plugs into them.
 
 ### JSON against Parquet (`stats.md`, screenshot `athena-console-recent-queries.png`)
 
-| Query | JSON (view over raw) | Parquet (curated) | Less data | Faster |
-| --- | --- | --- | --- | --- |
-| 3 turnover | 1,202.29 MB, 3.27 s | 6.09 MB, 1.42 s | **197×** | 2.3× |
-| 4 failure rate | 1,202.29 MB, 3.37 s | 0.64 MB, 1.08 s | **1,878×** | 3.1× |
-| 5 peak hours | 1,202.29 MB, 3.82 s | 8.10 MB, 1.14 s | **148×** | 3.4× |
+Two comparisons, because "JSON" can mean two things. The first is what the lab asks for: the queries
+on the raw JSON (through the deduplicating view) against the curated Parquet. The second is fair to
+the format: the **same deduplicated payments written as JSON** (`15-fair-ctas-json.sql`, table
+`payments_json`), so both sides do exactly the same work and only the file format differs. All three
+versions of queries 3–5 return byte-identical CSVs (md5 checked).
+
+| Query | Raw JSON via the view | Deduplicated JSON | Parquet (curated) | Parquet vs raw | Parquet vs same data in JSON |
+| --- | --- | --- | --- | --- | --- |
+| 3 turnover | 1,202.29 MB, 3.27 s | 387.43 MB, 2.28 s | 6.09 MB, 1.42 s | **197×** less data, 2.3× faster | **64×** less data, 1.6× faster |
+| 4 failure rate | 1,202.29 MB, 3.37 s | 387.43 MB, 2.39 s | 0.64 MB, 1.08 s | **1,878×**, 3.1× | **605×**, 2.2× |
+| 5 peak hours | 1,202.29 MB, 3.82 s | 387.43 MB, 1.93 s | 8.10 MB, 1.14 s | **148×**, 3.4× | **48×**, 1.7× |
+
+So of the 148–1,878× saving, a factor of about 3 comes from doing the deduplication once (1.2 GB of
+events become 387 MB of payments), and the rest, **48–605×**, from the format. The stored sizes say
+the same: raw JSON 1.26 GB, deduplicated JSON 406 MB, the same payments in Parquet **88 MB**.
 
 **What it means for the bill.** Athena bills $5 per TB scanned with a 10 MB minimum per query. On
-JSON, each of these queries costs $0.0060. On Parquet, each one bills the 10 MB minimum, $0.00005.
-That is **120 times cheaper** per query at this size, and **150–1,900 times** less data, which is
-what matters once the data is larger than the minimum. Each query also skips the deduplication,
-because it was done once in the curated layer.
+raw JSON each of these queries costs $0.0060, on deduplicated JSON $0.0019, and on Parquet each one
+bills the 10 MB minimum, $0.00005. That is **120 times cheaper** than raw per query at this size,
+and the gap in bytes (48–1,900×) is what matters once the data outgrows the minimum.
 
 Parquet wins in three ways:
 - it is columnar, so a query reads only the columns it uses;
@@ -261,18 +271,21 @@ feed.
 
 ### What it cost
 
-Measured usage at list prices (us-east-1):
+From the AWS bill (Cost Explorer, usage records of 24 November, before credits; us-east-1):
 
-| Service | Usage | Cost |
+| Service | Usage type: quantity | Cost |
 | --- | --- | --- |
-| Kinesis Data Streams | 1 shard × ~0.5 h ($0.015/shard-h); 101,084 PUT payload units ($0.014/M) | $0.009 |
-| Data Firehose | 101,084 records, billed in 5 KB steps = 0.51 GB ingested ($0.029/GB); format conversion ($0.018/GB); dynamic partitioning (48 MB × $0.02/GB, 1 object, seconds of JQ) | $0.025 |
-| Lambda | ~60 invocations, seconds of 256 MB | $0 (free tier) |
-| SNS | 2 emails | $0 (free tier) |
-| Athena | 36 queries, 17.76 GB scanned (Part 2, exploration, Part 3) | $0.089 |
-| Glue crawler | 1 run, 44 s (billed per second, 10-minute minimum, about 2 DPU) | ≈ $0.15 |
-| S3 | ~1.4 GB stored (raw copy, Parquet, stream), requests; the in-region copy is free | ≈ $0.03 / month |
-| **Total** | | **≈ $0.30** |
+| Kinesis Data Streams | Storage-ShardHour: 0.52 shard-hours; PutRequestPayloadUnits: 101,084 | $0.0093 |
+| Data Firehose | StreamsSourceBilledBytes 0.482 GB ($0.0140); DFCBilledBytes (Parquet conversion) 0.482 GB ($0.0087); DPBytesDelivered (dynamic partitioning) 0.045 GB ($0.0009); MetadataProcessingDuration (JQ) ($0.0003); S3DeliveryObjectCount 1 | $0.0238 |
+| Lambda | 153 requests, 120.5 GB-s (arm64) | $0 (free tier) |
+| SNS | 23 requests, 3 email deliveries (confirmation + 2 alerts) | $0 (free tier) |
+| Athena | DataScannedInTB 0.0162 | $0.0812 |
+| Glue | Crawler-DPU-Hour 0.1348 (one 44 s run, billed with the minimum); 319 catalog requests | $0.0593 |
+| S3 | ~1.8 GB stored (raw copy, curated JSON and Parquet, stream), requests; the in-region copy is free | ≈ $0.04 / month |
+| **Total** | | **≈ $0.17** (+ S3 storage) |
+
+The Firehose line confirms the 5 KB rounding: 48 MB of records were billed as 0.48 GB. The comparison
+queries run on 25 November add about 1.6 GB scanned ($0.008).
 
 The stream and Firehose were deleted right after the run (`make -C lab8 stream-off`, 22:30 UTC), so
 nothing bills by the hour any more. The bucket and tables stay for the review.
@@ -309,9 +322,9 @@ consumer. Athena then costs per query: on Parquet, cents a month.
 - The raw JSON is the immutable record of what arrived, duplicates and all. If the deduplication rule,
   the schema or a bug changes, the curated layer can be rebuilt from it. It is also evidence for audits
   and disputes.
-- Parquet is the curated, deduplicated, typed copy optimised for reading: 150–1,900 times less data per
-  query here.
-- Storage is cheap (the Parquet copy is a few percent of the JSON). Re-reading raw JSON for every
+- Parquet is the curated, deduplicated, typed copy optimised for reading: 148–1,878 times less data per
+  query here than the raw JSON, and 48–605 times less than the same payments in JSON.
+- Storage is cheap (the Parquet copy is 88 MB, 7% of the 1.26 GB of raw JSON). Re-reading raw JSON for every
   query is not. A lifecycle rule can move old raw data to colder storage classes.
 
 **When a nightly batch is enough, and when seconds are needed.**
