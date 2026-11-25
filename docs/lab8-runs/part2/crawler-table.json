@@ -1,0 +1,132 @@
+{
+  "Name": "crawled_payments",
+  "DatabaseName": "lab8_payments",
+  "Owner": "owner",
+  "CreateTime": "2026-11-24 23:57:13+02:00",
+  "UpdateTime": "2026-11-24 23:57:13+02:00",
+  "LastAccessTime": "2026-11-24 23:57:13+02:00",
+  "Retention": 0,
+  "StorageDescriptor": {
+    "Columns": [
+      {
+        "Name": "invoiceid",
+        "Type": "string"
+      },
+      {
+        "Name": "amount",
+        "Type": "int"
+      },
+      {
+        "Name": "ccy",
+        "Type": "int"
+      },
+      {
+        "Name": "reference",
+        "Type": "string"
+      },
+      {
+        "Name": "createddate",
+        "Type": "string"
+      },
+      {
+        "Name": "merchantid",
+        "Type": "string"
+      },
+      {
+        "Name": "merchantname",
+        "Type": "string"
+      },
+      {
+        "Name": "mcc",
+        "Type": "int"
+      },
+      {
+        "Name": "customerid",
+        "Type": "string"
+      },
+      {
+        "Name": "paymentmethod",
+        "Type": "string"
+      },
+      {
+        "Name": "device",
+        "Type": "string"
+      },
+      {
+        "Name": "status",
+        "Type": "string"
+      },
+      {
+        "Name": "modifieddate",
+        "Type": "string"
+      },
+      {
+        "Name": "finalamount",
+        "Type": "int"
+      },
+      {
+        "Name": "receivedat",
+        "Type": "string"
+      },
+      {
+        "Name": "failurereason",
+        "Type": "string"
+      }
+    ],
+    "Location": "s3://ooad-lab8-027824090051/payments/",
+    "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+    "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+    "Compressed": false,
+    "NumberOfBuckets": -1,
+    "SerdeInfo": {
+      "SerializationLibrary": "org.openx.data.jsonserde.JsonSerDe",
+      "Parameters": {
+        "paths": "amount,ccy,createdDate,customerId,device,failureReason,finalAmount,invoiceId,mcc,merchantId,merchantName,modifiedDate,paymentMethod,receivedAt,reference,status"
+      }
+    },
+    "BucketColumns": [],
+    "SortColumns": [],
+    "Parameters": {
+      "sizeKey": "1260672849",
+      "objectCount": "31",
+      "UPDATED_BY_CRAWLER": "ooad-lab8-payments",
+      "CRAWL_RUN_ID": "4f0840cc-347c-453f-ab58-a0d7c832c63d",
+      "recordCount": "1202922",
+      "CrawlerSchemaSerializerVersion": "1.0",
+      "averageRecordSize": "1047",
+      "partition_filtering.enabled": "true",
+      "compressionType": "none",
+      "CrawlerSchemaDeserializerVersion": "1.0",
+      "classification": "json",
+      "typeOfData": "file"
+    },
+    "StoredAsSubDirectories": false
+  },
+  "PartitionKeys": [
+    {
+      "Name": "dt",
+      "Type": "string"
+    }
+  ],
+  "TableType": "EXTERNAL_TABLE",
+  "Parameters": {
+    "sizeKey": "1260672849",
+    "objectCount": "31",
+    "UPDATED_BY_CRAWLER": "ooad-lab8-payments",
+    "CRAWL_RUN_ID": "4f0840cc-347c-453f-ab58-a0d7c832c63d",
+    "recordCount": "1202922",
+    "CrawlerSchemaSerializerVersion": "1.0",
+    "averageRecordSize": "1047",
+    "partition_filtering.enabled": "true",
+    "compressionType": "none",
+    "CrawlerSchemaDeserializerVersion": "1.0",
+    "classification": "json",
+    "typeOfData": "file"
+  },
+  "CreatedBy": "arn:aws:sts::027824090051:assumed-role/ooad-lab8-glue-crawler/AWS-Crawler",
+  "IsRegisteredWithLakeFormation": false,
+  "CatalogId": "027824090051",
+  "VersionId": "1",
+  "IsMultiDialectView": false,
+  "IsMaterializedView": false
+}

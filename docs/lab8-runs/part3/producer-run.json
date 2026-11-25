@@ -1,0 +1,18 @@
+{
+  "stream": "ooad-lab8-payments",
+  "day": "2026-10-01",
+  "started_at": "2026-11-24T22:00:38.397807+00:00",
+  "elapsed_s": 126.4,
+  "records_per_s": 799.7,
+  "megabytes": 48.29,
+  "drill": {
+    "merchant": "m-003",
+    "after_s": 45.0,
+    "seconds": 75.0
+  },
+  "sent": 101084,
+  "bytes": 48293789,
+  "retried": 0,
+  "errors": {},
+  "drill_events": 2072
+}

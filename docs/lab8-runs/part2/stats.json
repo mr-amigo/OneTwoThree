@@ -1,0 +1,191 @@
+{
+  "01-create-table": {
+    "file": "01-create-table.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 0,
+    "engine_ms": 292,
+    "total_ms": 423,
+    "query_id": "25805ca0-7bfd-47f7-9f59-bf90bf162b7b"
+  },
+  "02-load-partitions": {
+    "file": "02-load-partitions.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 0,
+    "engine_ms": 3065,
+    "total_ms": 3257,
+    "query_id": "52f026fb-36f4-41a8-b5d3-ede30af0f1c1"
+  },
+  "03-count": {
+    "file": "03-count.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 1422,
+    "total_ms": 1609,
+    "query_id": "f25608f8-ba4e-4c68-a1a6-3a67279cabba"
+  },
+  "04-view-payments": {
+    "file": "04-view-payments.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 0,
+    "engine_ms": 402,
+    "total_ms": 529,
+    "query_id": "d1717a85-7011-4c1c-9dff-a739855a052b"
+  },
+  "05-scale": {
+    "file": "05-scale.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 2521384846,
+    "engine_ms": 2837,
+    "total_ms": 3013,
+    "query_id": "d0e946ac-ce95-4dee-b95d-587fd6951ecf"
+  },
+  "06-q3-turnover-json": {
+    "file": "06-q3-turnover-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 3272,
+    "total_ms": 3455,
+    "query_id": "d2626f0b-033b-4db8-ac41-48715e37144c"
+  },
+  "07-q4-failure-rate-json": {
+    "file": "07-q4-failure-rate-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 3367,
+    "total_ms": 3557,
+    "query_id": "ef5569cd-15af-4997-bfb2-5d7a8c4354dc"
+  },
+  "08-q5-peak-hours-json": {
+    "file": "08-q5-peak-hours-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 3817,
+    "total_ms": 3961,
+    "query_id": "121bf2d7-c8c2-46d4-9e13-c3553e35586e"
+  },
+  "09-q6-late-events": {
+    "file": "09-q6-late-events.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 3060,
+    "total_ms": 3188,
+    "query_id": "cd405135-339c-40ba-82b7-874378c0de80"
+  },
+  "09b-drop-parquet-table": {
+    "file": "09b-drop-parquet-table.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 0,
+    "engine_ms": 211,
+    "total_ms": 369,
+    "query_id": "be39c3f2-9eb0-47f7-a32b-5f953512b8fc"
+  },
+  "10-q7-ctas-parquet": {
+    "file": "10-q7-ctas-parquet.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 7632,
+    "total_ms": 7839,
+    "query_id": "2cb91567-6b74-483d-b012-d3c02cc83bf9"
+  },
+  "11-q3-turnover-parquet": {
+    "file": "11-q3-turnover-parquet.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 6384976,
+    "engine_ms": 1424,
+    "total_ms": 1650,
+    "query_id": "8bf748fb-7f7b-4860-a360-d350207c68dd"
+  },
+  "12-q4-failure-rate-parquet": {
+    "file": "12-q4-failure-rate-parquet.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 675760,
+    "engine_ms": 1084,
+    "total_ms": 1281,
+    "query_id": "3f78d3ce-bdd9-4b06-88ed-c93bf7a69de4"
+  },
+  "13-q5-peak-hours-parquet": {
+    "file": "13-q5-peak-hours-parquet.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 8490834,
+    "engine_ms": 1144,
+    "total_ms": 1279,
+    "query_id": "024bba4e-26c0-4606-87fb-5632bf822f89"
+  },
+  "14-way-b-crawled-table": {
+    "file": "14-way-b-crawled-table.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 2159,
+    "total_ms": 2310,
+    "query_id": "6fe156cf-eb8e-4579-bfd1-62b0d3c7be01"
+  },
+  "14b-drop-json-table": {
+    "file": "14b-drop-json-table.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 0,
+    "engine_ms": 199,
+    "total_ms": 531,
+    "query_id": "e545cebf-3e90-479d-a929-02d2e85570de"
+  },
+  "15-fair-ctas-json": {
+    "file": "15-fair-ctas-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 9844,
+    "total_ms": 10004,
+    "query_id": "a608ac33-7a38-4b45-8371-1acf839eb517"
+  },
+  "16-fair-q3-turnover-json": {
+    "file": "16-fair-q3-turnover-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 406245662,
+    "engine_ms": 2276,
+    "total_ms": 2423,
+    "query_id": "931a8399-27ed-48e0-8848-7b23aaec601e"
+  },
+  "17-fair-q4-failure-rate-json": {
+    "file": "17-fair-q4-failure-rate-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 406245662,
+    "engine_ms": 2390,
+    "total_ms": 2614,
+    "query_id": "3b7fff88-a3cf-4958-b85e-be68519442cc"
+  },
+  "18-fair-q5-peak-hours-json": {
+    "file": "18-fair-q5-peak-hours-json.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 406245662,
+    "engine_ms": 1930,
+    "total_ms": 2080,
+    "query_id": "04540f7b-a956-4859-a6f2-ec4b5fccb48a"
+  },
+  "19-q5-peak-hours-utc": {
+    "file": "19-q5-peak-hours-utc.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 8490834,
+    "engine_ms": 1511,
+    "total_ms": 1692,
+    "query_id": "1fbd6e28-35b3-4854-9abd-10b5cc5a53a9"
+  }
+}
