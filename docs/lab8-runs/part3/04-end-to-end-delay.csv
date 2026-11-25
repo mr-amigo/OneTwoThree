@@ -1,0 +1,2 @@
+"file","events","first_sent","last_sent","written","last_event_to_file_s"
+"s3://ooad-lab8-027824090051/stream/dt=2026-10-01/ooad-lab8-to-s3-1-2026-11-24-22-00-39-276d73b8-fbcc-3143-ba73-961d88494b3a.parquet","101084","2026-11-24 22:00:38.397 UTC","2026-11-24 22:02:44.659 UTC","2026-11-24 22:03:30.000 UTC","45"

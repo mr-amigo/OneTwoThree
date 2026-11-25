@@ -1,0 +1,38 @@
+{
+  "04-end-to-end-delay": {
+    "file": "04-end-to-end-delay.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 150965,
+    "engine_ms": 1131,
+    "total_ms": 1319,
+    "query_id": "0cc54ae2-0d78-4eef-aea7-41ccfe39de11"
+  },
+  "01-stream-arrived": {
+    "file": "01-stream-arrived.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 743944,
+    "engine_ms": 763,
+    "total_ms": 917,
+    "query_id": "82bf08bc-b0b6-4308-9a3d-41397bc6584b"
+  },
+  "02-stream-vs-batch": {
+    "file": "02-stream-vs-batch.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 43192590,
+    "engine_ms": 1181,
+    "total_ms": 1380,
+    "query_id": "7d0b6e58-cd27-476a-844b-57240e79c2db"
+  },
+  "03-failure-rate-by-merchant": {
+    "file": "03-failure-rate-by-merchant.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1624267,
+    "engine_ms": 1186,
+    "total_ms": 1405,
+    "query_id": "7d5a89eb-1099-4411-8c41-6c6eedd0a750"
+  }
+}

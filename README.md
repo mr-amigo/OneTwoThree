@@ -61,6 +61,8 @@ infra/            # Terraform (Lab 7): auth.tf (Cognito), reports.tf (weekly rep
 docs/adr/         # architecture decision records (0006: LLM agenda parsing, 0007: Terraform)
 docs/lab6-report.md, docs/lab6-runs/ # Lab 6 test table, answers, raw runs, CloudWatch lines, screen recording
 docs/lab7-report.md, docs/lab7-runs/ # Lab 7 migration log, plans, drift check, answers
+lab8/             # Lab 8 sandbox: payments lake (Athena, Glue) and stream (Kinesis, Firehose, Lambda, SNS), Terraform
+docs/lab8-report.md, docs/lab8-runs/ # Lab 8 queries, results, Parquet vs JSON, stream run, costs, answers
 .github/workflows/ # code-style.yml (lint), infra.yml (Terraform plan on PRs, apply on main)
 ```
 

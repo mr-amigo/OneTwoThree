@@ -1,0 +1,20 @@
+{
+  "01-what-is-dt": {
+    "file": "01-what-is-dt.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 2137,
+    "total_ms": 2298,
+    "query_id": "3b0f13bf-12c7-4671-b996-836792ca76dd"
+  },
+  "02-what-is-a-duplicate": {
+    "file": "02-what-is-a-duplicate.sql",
+    "state": "SUCCEEDED",
+    "error": "",
+    "data_scanned_bytes": 1260692423,
+    "engine_ms": 2753,
+    "total_ms": 2933,
+    "query_id": "bd8f4bbe-9f99-4139-a03b-4eb59df17d3e"
+  }
+}
