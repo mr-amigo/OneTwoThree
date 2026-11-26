@@ -1,0 +1,53 @@
+# Lab 9 stretch: deploy the core to Google Cloud from GitHub Actions through Workload Identity
+# Federation (gcp/wif.tf). GitHub's OIDC token is exchanged for a short-lived token of the
+# meetings-deployer service account; no key is stored anywhere.
+#
+# Manual only, and only once the repository variables exist (from `terraform -chdir=gcp output`):
+#   GCP_PROJECT_ID, GCP_WIF_PROVIDER (workload_identity_provider), GCP_DEPLOYER_SA (deployer_service_account)
+
+name: Deploy to Google Cloud
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: us-central1
+  SERVICE: meetings-api
+
+jobs:
+  deploy:
+    if: vars.GCP_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push the backend image
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/meetings/backend:${GITHUB_SHA::7}"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" back
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Roll it out on Cloud Run
+        run: gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "${{ vars.GCP_PROJECT_ID }}" --quiet
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build the SPA and deploy Firebase Hosting
+        run: |
+          cd front && npm ci --no-audit --no-fund && VITE_API_URL= npm run build && cd ..
+          cd gcp && npx --yes firebase-tools deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive

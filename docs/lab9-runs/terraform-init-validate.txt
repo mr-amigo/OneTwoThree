@@ -1,0 +1,39 @@
+# gcp/: terraform init and validate, with no Google credentials on this machine
+$ gcloud auth list
+
+No credentialed accounts.
+
+$ ls ~/.config/gcloud/application_default_credentials.json
+ls: /Users/mr_amigo_me/.config/gcloud/application_default_credentials.json: No such file or directory
+
+$ terraform -chdir=gcp init
+Initializing the backend...
+
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+- Reusing version 3.9.1 of hashicorp/random from the dependency lock file
+- Reusing version 7.46.2 of hashicorp/google from the dependency lock file
+- Reusing version 7.46.2 of hashicorp/google-beta from the dependency lock file
+- Installing hashicorp/google-beta v7.46.2...
+- Installed hashicorp/google-beta v7.46.2 (signed by HashiCorp)
+- Installing hashicorp/random v3.9.1...
+- Installed hashicorp/random v3.9.1 (signed by HashiCorp)
+- Installing hashicorp/google v7.46.2...
+- Installed hashicorp/google v7.46.2 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+$ terraform -chdir=gcp validate
+Success! The configuration is valid.
+
+$ terraform -chdir=gcp fmt -check -recursive && echo formatted
+formatted

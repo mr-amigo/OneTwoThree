@@ -1,0 +1,18 @@
+$ docker build -t meetings-backend:cloudrun back   # back/Dockerfile: no Lambda adapter, listens on $PORT
+$ docker run -d --name lab9-db --network lab9 -e POSTGRES_USER=meetings -e POSTGRES_PASSWORD=*** -e POSTGRES_DB=meetings postgres:16-alpine
+$ docker run -d --name lab9-api --network lab9 -e PORT=8080 -p 8080:8080 -e DB_HOST=lab9-db -e DB_USER=meetings -e DB_PASSWORD=*** -e DB_NAME=meetings -e SEED=true -e CORS_ORIGINS=http://localhost:4180 meetings-backend:cloudrun
+$ docker ps
+NAMES              IMAGE                       STATUS                  PORTS
+lab9-api           meetings-backend:cloudrun   Up About a minute       0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+lab9-db            postgres:16-alpine          Up 13 minutes           5432/tcp
+
+$ docker logs lab9-api | tail -4
+INFO:     192.168.65.1:51974 - "OPTIONS /api/meetings HTTP/1.1" 200 OK
+INFO:     192.168.65.1:42833 - "OPTIONS /api/me HTTP/1.1" 200 OK
+INFO:     192.168.65.1:42833 - "GET /api/me HTTP/1.1" 200 OK
+INFO:     192.168.65.1:51974 - "GET /api/meetings HTTP/1.1" 200 OK
+
+$ curl localhost:8080/api/health        # SELECT 1 in PostgreSQL
+{"status":"ok"}
+$ curl localhost:8080/api/meetings     # the first meeting: title, place, participants (read from PostgreSQL)
+{"title": "Lab 9: Spry on Cloud Run (local)", "place": "Room 9", "participants": ["Anna Kovalenko", "Iryna Bondar", "Oleh Shevchenko"]}

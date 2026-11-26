@@ -61,6 +61,8 @@ infra/            # Terraform (Lab 7): auth.tf (Cognito), reports.tf (weekly rep
 docs/adr/         # architecture decision records (0006: LLM agenda parsing, 0007: Terraform)
 docs/lab6-report.md, docs/lab6-runs/ # Lab 6 test table, answers, raw runs, CloudWatch lines, screen recording
 docs/lab7-report.md, docs/lab7-runs/ # Lab 7 migration log, plans, drift check, answers
+gcp/              # Lab 9: the core on Google Cloud (Terraform: Cloud Run, Cloud SQL, Firebase Hosting, WIF), separate state
+docs/lab9-report.md, docs/lab9-runs/ # Lab 9 cost table, local Cloud Run run, terraform validate, answers
 lab8/             # Lab 8 sandbox: payments lake (Athena, Glue) and stream (Kinesis, Firehose, Lambda, SNS), Terraform
 docs/lab8-report.md, docs/lab8-runs/ # Lab 8 queries, results, Parquet vs JSON, stream run, costs, answers
 .github/workflows/ # code-style.yml (lint), infra.yml (Terraform plan on PRs, apply on main)
@@ -266,6 +268,34 @@ deploy the CloudFormation stacks that Terraform reads (`make aws-backend-deploy`
 How the existing resources were moved without losing a user or a report (Retain, import blocks, a plan with 0 to
 destroy), why GitHub Actions and not HCP Terraform, and the answers to the lab's questions:
 [ADR 0007](docs/adr/0007-terraform.md) and [docs/lab7-report.md](docs/lab7-report.md).
+
+## Google Cloud (Lab 9)
+
+`gcp/` describes the app's core on Google Cloud, next to `infra/` and with its own state, so one plan
+cannot break both clouds. The service choices are in [ADR 0008](docs/adr/0008-google-cloud.md), and
+the costs and answers in [docs/lab9-report.md](docs/lab9-report.md).
+
+| Piece | Google Cloud |
+| --- | --- |
+| Frontend | Firebase Hosting; `/api/**` is rewritten to Cloud Run (`gcp/firebase.json`): one origin, no CORS |
+| API | Cloud Run, the same image as Docker Compose (`back/Dockerfile`, listens on `$PORT`), min 0 instances |
+| Database | Cloud SQL PostgreSQL 16, db-f1-micro, over the Cloud SQL connector; the password comes from Secret Manager |
+| Identities | `meetings-api` (runtime) and `meetings-deployer` (CI through Workload Identity Federation); no key files |
+| Still on AWS | sign-in (Cognito), the weekly report, the agenda parser, e-mail (SES) |
+
+```bash
+make gcp-validate                    # terraform init + validate in gcp/ (no Google credentials needed)
+make gcp-local                       # the backend image as Cloud Run runs it: PORT=8080, next to PostgreSQL
+# With a billing account:
+gcloud auth application-default login
+terraform -chdir=gcp apply -var project_id=<id> -var cognito_user_pool_id=<pool> -var cognito_client_id=<client>
+docker push <region>-docker.pkg.dev/<id>/meetings/backend:latest
+(cd gcp && npx firebase-tools deploy --only hosting --project <id>)
+terraform -chdir=gcp apply -var db_running=false ...   # stop the database (storage is still billed)
+terraform -chdir=gcp destroy ...                       # remove everything
+```
+
+Cloud SQL never pauses: an instance that is left running bills about $9.40 a month for nobody.
 
 ## Deploy to AWS (backend on Lambda + Aurora Serverless, frontend on CloudFront)
 
