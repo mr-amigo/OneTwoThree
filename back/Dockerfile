@@ -12,6 +12,7 @@ RUN uv pip install --system --no-cache -r pyproject.toml
 
 COPY . .
 
+# Docker Compose uses 8000; Cloud Run sends the port in PORT (8080). The same image runs on both.
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && python -m app.seed && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

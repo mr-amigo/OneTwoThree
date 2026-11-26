@@ -466,3 +466,20 @@ parse: ## Parse pasted text: make parse TEXT="Mon 10:00 pricing sync 45m"
 .PHONY: bedrock-check
 bedrock-check: ## Is this AWS account ready for PARSER_PROVIDER=bedrock? Access, quotas, one call per Bedrock API
 	@$(LLM_ENV) cd back && uv run python -m app.ai.bedrock_check
+
+##@ Google Cloud (Lab 9: gcp/, see docs/lab9-report.md)
+
+.PHONY: gcp-validate
+gcp-validate: ## terraform init + fmt + validate in gcp/ (state key gcp/ in the S3 state bucket; no Google credentials needed)
+	@$(LOAD_ENV) terraform -chdir=gcp init -input=false >/dev/null && terraform -chdir=gcp fmt -check -recursive && terraform -chdir=gcp validate
+
+.PHONY: gcp-local
+gcp-local: ## Run the backend image the way Cloud Run does (PORT=8080) next to PostgreSQL: http://localhost:8080/api/health
+	docker build -q -t meetings-backend:cloudrun back
+	-docker network create lab9 >/dev/null 2>&1
+	-docker rm -f lab9-db lab9-api >/dev/null 2>&1
+	docker run -d --name lab9-db --network lab9 -e POSTGRES_USER=meetings -e POSTGRES_PASSWORD=localpw -e POSTGRES_DB=meetings postgres:16-alpine
+	sleep 5
+	docker run -d --name lab9-api --network lab9 -e PORT=8080 -p 8080:8080 -e DB_HOST=lab9-db -e DB_USER=meetings \
+	  -e DB_PASSWORD=localpw -e DB_NAME=meetings -e SEED=true meetings-backend:cloudrun
+	@echo "API: http://localhost:8080/api/health   (stop: docker rm -f lab9-api lab9-db)"
