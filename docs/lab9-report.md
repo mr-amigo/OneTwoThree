@@ -15,7 +15,7 @@ denied"), so the lab's no-account route is used. Everything that does not need a
 | The app, ready for Cloud Run, running locally | [`lab9-runs/local-cloud-run.png`](lab9-runs/local-cloud-run.png) and [`.txt`](lab9-runs/local-cloud-run.txt) |
 | Cost table | [below](#part-3-the-minimal-setup-on-both-clouds-and-what-it-costs) |
 | Colab notebook (demos 1, 3, 4, 5) | https://colab.research.google.com/drive/1sYtCrVnhcsJD41YcL8m_Kqh2s8V3wRq7 (anyone with the link can view; Run all on the free CPU runtime, outputs saved) |
-| Looker Studio dashboard | LOOKER_LINK |
+| Looker Studio dashboard | https://lookerstudio.google.com/reporting/a98a21ff-fa56-427f-a99b-02ff9ca379f3 (anyone with the link can view); screenshot: [`lab9-runs/looker-studio.png`](lab9-runs/looker-studio.png) |
 
 ## Part 0: a project you can automate
 
@@ -167,7 +167,7 @@ right and come with a confidence score for review, when tables span pages, and w
 may not leave a certified environment. An open model is fine for a few documents, for drafts a
 person checks, or when the data may not go to any cloud at all.
 
-**Looker Studio** (LOOKER_LINK). The source is a Google Sheet with the Our World in Data CO₂ table,
+**Looker Studio** (https://lookerstudio.google.com/reporting/a98a21ff-fa56-427f-a99b-02ff9ca379f3). The source is a Google Sheet with the Our World in Data CO₂ table,
 1950–2025 (19,613 rows: country, iso_code, year, population, gdp, co2, co2_per_capita, coal, oil and
 gas CO₂). The report has four parts:
 - a line chart of world emissions by year (`country = World`);
@@ -183,7 +183,8 @@ What it shows:
 - The map tells a different story from the bar chart. Per person, the leaders are the Gulf states
   (Qatar 32.8 t, Kuwait 22.1 t), then the United States (14.3 t). China is at 8.6 t and India at
   2.1 t, against a world average of 4.7 t.
-- With the control set to Ukraine: 707 Mt in 1990, 140 Mt in 2023.
+- The drop-down narrows the bar chart and the map to the chosen countries. For Ukraine the same
+  Sheet gives 707 Mt in 1990 and 140 Mt in 2023.
 
 No bill and no Cloud project were needed: Looker Studio reads the Sheet with the Google account alone.
 
